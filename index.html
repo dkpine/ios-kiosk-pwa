@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; frame-src http: https:; style-src 'self'; script-src 'self'">
+  <title>Instructor Station Kiosk</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a1a2e">
+  <link rel="icon" type="image/png" sizes="128x128" href="icons/icon-128.png">
+  <link rel="apple-touch-icon" href="icons/icon-128.png">
+  <link rel="stylesheet" href="application.css">
+</head>
+<body>
+
+  <!-- IFRAME: fills entire viewport, loads the instructor station URL -->
+  <iframe id="ios-frame"
+          allow="fullscreen; autoplay"
+          allowfullscreen></iframe>
+
+  <!-- CONNECTION STATUS BANNER: shown during connection retries -->
+  <div id="connection-status" class="hidden">
+    <span id="status-message">Connecting to Instructor Station...</span>
+  </div>
+
+  <!-- CONFIG OVERLAY: shown on first boot or via Ctrl+Shift+O -->
+  <div id="config-overlay" class="hidden">
+    <div class="config-dialog">
+      <div class="config-header">
+        <img src="icons/icon-128.png" alt="one-G" class="config-logo">
+        <h1>Instructor Station Kiosk</h1>
+        <p class="config-subtitle">one-G Simulation</p>
+      </div>
+
+      <div class="config-body">
+        <label for="ios-addr-input">IOS Address</label>
+        <input type="url" id="ios-addr-input"
+               placeholder="e.g. http://10.38.1.50:8080"
+               autocomplete="off" autocapitalize="off" spellcheck="false">
+        <div id="validation-msg" class="validation-msg"></div>
+
+        <div class="config-actions">
+          <button id="btn-save" class="btn btn-primary">Save &amp; Connect</button>
+          <button id="btn-clear" class="btn btn-danger">Clear</button>
+          <button id="btn-close" class="btn btn-secondary">Close</button>
+        </div>
+
+        <div class="config-info">
+          <p>Current: <span id="current-url-display">Not configured</span></p>
+          <p class="config-hint">Press <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd> to open this dialog at any time</p>
+        </div>
+      </div>
+
+      <div class="config-footer">
+        <span id="version-display">v1.0</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="application.js"></script>
+</body>
+</html>

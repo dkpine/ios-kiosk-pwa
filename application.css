@@ -1,0 +1,262 @@
+/* ============================================================
+   Instructor Station Kiosk - PWA Config Shell
+   Dark theme with one-G branding (navy + white logo, gold accents)
+   ============================================================ */
+
+/* --- Reset & Base --- */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+}
+
+/* --- Iframe (fills entire viewport) --- */
+
+#ios-frame {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  z-index: 1;
+  display: none; /* hidden until URL is set */
+}
+
+#ios-frame.active {
+  display: block;
+}
+
+/* --- Connection Status Banner --- */
+
+#connection-status {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(231, 76, 60, 0.92);
+  color: #fff;
+  padding: 14px 20px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+/* --- Config Overlay --- */
+
+#config-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.config-dialog {
+  background: #16213e;
+  border-radius: 16px;
+  padding: 40px;
+  max-width: 560px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* --- Config Header --- */
+
+.config-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.config-logo {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 16px;
+}
+
+.config-header h1 {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.config-subtitle {
+  color: #7889a0;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+/* --- Config Body / Form --- */
+
+.config-body label {
+  display: block;
+  color: #7889a0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  margin-bottom: 8px;
+}
+
+.config-body input[type="url"] {
+  width: 100%;
+  padding: 16px;
+  font-size: 18px;
+  background: #0f3460;
+  border: 2px solid #1a1a4e;
+  border-radius: 10px;
+  color: #e0e0e0;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.config-body input[type="url"]:focus {
+  border-color: #e8d44d;
+  box-shadow: 0 0 0 3px rgba(232, 212, 77, 0.15);
+}
+
+.config-body input[type="url"]::placeholder {
+  color: #4a5a70;
+}
+
+/* --- Validation Message --- */
+
+.validation-msg {
+  min-height: 24px;
+  font-size: 14px;
+  margin: 8px 0 0;
+  line-height: 24px;
+}
+
+.validation-msg.error {
+  color: #e74c3c;
+}
+
+.validation-msg.success {
+  color: #2ecc71;
+}
+
+/* --- Buttons --- */
+
+.config-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+
+.btn {
+  padding: 14px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+  min-height: 48px;
+  transition: opacity 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  flex: 1 1 auto;
+  background: #e8d44d;
+  color: #1a1a2e;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-danger {
+  background: transparent;
+  border: 2px solid #e74c3c;
+  color: #e74c3c;
+}
+
+.btn-danger:hover {
+  background: rgba(231, 76, 60, 0.1);
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 2px solid #4a5a70;
+  color: #7889a0;
+}
+
+.btn-secondary:hover {
+  background: rgba(120, 137, 160, 0.1);
+}
+
+/* --- Config Info --- */
+
+.config-info {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid #1a1a4e;
+}
+
+.config-info p {
+  font-size: 14px;
+  color: #7889a0;
+  margin-bottom: 8px;
+}
+
+#current-url-display {
+  color: #e8d44d;
+  font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  word-break: break-all;
+}
+
+.config-hint {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+kbd {
+  display: inline-block;
+  background: #0f3460;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+  border: 1px solid #1a1a4e;
+}
+
+/* --- Config Footer --- */
+
+.config-footer {
+  text-align: right;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #1a1a4e;
+}
+
+#version-display {
+  font-size: 12px;
+  color: #4a5a70;
+}
+
+/* --- Utility --- */
+
+.hidden {
+  display: none !important;
+}
