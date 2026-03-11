@@ -428,7 +428,7 @@
 
         iframe.src = url;
       })
-      .catch(function () {
+      .catch(function (err) {
         clearTimeout(probeTimeout);
 
         // Guard: if a newer navigateToUrl replaced our controller, bail out.
@@ -438,7 +438,8 @@
         if (activeProbeController !== controller) return;
 
         activeProbeController = null;
-        handleConnectionFailure(url);
+        console.error('[Kiosk] Probe failed for ' + url + ':', err.name, err.message);
+        handleConnectionFailure(url, err);
       });
   }
 
@@ -462,10 +463,15 @@
     }, SUCCESS_BANNER_MS);
   }
 
-  function handleConnectionFailure(url) {
+  function handleConnectionFailure(url, err) {
     if (bgLogo) bgLogo.classList.add('hidden');
-    // Show static banner — countdown ring handles the visual timer
-    showBanner('error', 'Connection failed \u2014 tap for troubleshooting steps');
+    // Build failure message with diagnostic detail when available
+    var msg = 'Connection failed';
+    if (err && err.message) {
+      msg += ' (' + err.message + ')';
+    }
+    msg += ' \u2014 tap for troubleshooting steps';
+    showBanner('error', msg);
     connectionStatus.onclick = function () {
       showTroubleshootPanel();
     };
