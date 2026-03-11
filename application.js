@@ -17,7 +17,7 @@
   var PROBE_TIMEOUT_MS = 8000;
   var MAX_AUTO_RETRIES = 1;
   var SUCCESS_BANNER_MS = 3000;
-  var APP_VERSION = '1.02';
+  var APP_VERSION = '1.03';
 
   // ---- DOM References ----
 
@@ -36,10 +36,14 @@
   var btnClose = document.getElementById('btn-close');
   var btnTheme = document.getElementById('btn-theme');
   var btnOpenConfig = document.getElementById('btn-open-config');
+  var tailInput = document.getElementById('tail-input');
+  var btnLookup = document.getElementById('btn-lookup');
+  var lookupMsg = document.getElementById('lookup-msg');
   var versionDisplay = document.getElementById('version-display');
 
   // ---- State ----
 
+  var deviceDb = null; // loaded from devices.json
   var currentUrl = null;
   var retryTimer = null;
   var retryCount = 0;
@@ -55,12 +59,69 @@
       versionDisplay.textContent = 'v' + APP_VERSION;
     }
     initTheme();
+    loadDeviceDb();
     registerServiceWorker();
     requestWakeLock();
     setupHotkey();
     setupButtons();
     setupScreenshotListener();
     boot();
+  }
+
+  // ============================================================
+  // Device Database (tail number → URL lookup)
+  // ============================================================
+
+  function loadDeviceDb() {
+    fetch('./devices.json')
+      .then(function (res) { return res.json(); })
+      .then(function (data) { deviceDb = data; })
+      .catch(function () { deviceDb = null; });
+  }
+
+  function handleLookup() {
+    var raw = (tailInput.value || '').trim().toUpperCase();
+    lookupMsg.textContent = '';
+    lookupMsg.className = 'validation-msg';
+
+    if (!raw) {
+      lookupMsg.textContent = 'Please enter a tail number.';
+      lookupMsg.className = 'validation-msg error';
+      return;
+    }
+
+    if (!deviceDb) {
+      lookupMsg.textContent = 'Device database not loaded. Try again in a moment.';
+      lookupMsg.className = 'validation-msg error';
+      return;
+    }
+
+    var url = deviceDb[raw];
+    if (!url) {
+      lookupMsg.textContent = 'Tail number "' + raw + '" not found in database.';
+      lookupMsg.className = 'validation-msg error';
+      return;
+    }
+
+    // Found — populate the address field and auto-save
+    addrInput.value = url;
+    lookupMsg.textContent = 'Found! ' + url;
+    lookupMsg.className = 'validation-msg success';
+
+    saveUrl(url);
+    showValidation('Saved! Connecting...', 'success');
+
+    setTimeout(function () {
+      navigateToUrl(url);
+      configOverlay.classList.add('hidden');
+      clearValidation();
+      clearLookupMsg();
+    }, 600);
+  }
+
+  function clearLookupMsg() {
+    lookupMsg.textContent = '';
+    lookupMsg.className = 'validation-msg';
   }
 
   // ============================================================
@@ -348,10 +409,12 @@
 
   function showConfigOverlay() {
     addrInput.value = currentUrl || '';
+    tailInput.value = '';
     configOverlay.classList.remove('hidden');
     clearValidation();
+    clearLookupMsg();
     setTimeout(function () {
-      addrInput.focus();
+      tailInput.focus();
     }, 100);
   }
 
@@ -432,7 +495,16 @@
       showConfigOverlay();
     });
 
-    // Enter key in input triggers save
+    // Tail number lookup
+    btnLookup.addEventListener('click', handleLookup);
+    tailInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleLookup();
+      }
+    });
+
+    // Enter key in manual address input triggers save
     addrInput.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
         e.preventDefault();

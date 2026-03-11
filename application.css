@@ -288,6 +288,58 @@ html, body {
 :root[data-theme="light"] .theme-icon-sun { display: block; }
 :root[data-theme="light"] .theme-icon-moon { display: none; }
 
+/* --- Tail Number Lookup --- */
+
+.lookup-row {
+  display: flex;
+  gap: 10px;
+}
+
+.lookup-row input {
+  flex: 1;
+  padding: 16px;
+  font-size: 18px;
+  text-transform: uppercase;
+  background: var(--bg-input);
+  border: 2px solid var(--border-subtle);
+  border-radius: 10px;
+  color: var(--text-body);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.lookup-row input:focus {
+  border-color: var(--accent);
+}
+
+.lookup-row input::placeholder {
+  color: var(--text-faint);
+  text-transform: none;
+}
+
+.lookup-row .btn {
+  white-space: nowrap;
+}
+
+.config-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 20px 0;
+  color: var(--text-faint);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.config-divider::before,
+.config-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
 /* --- Config Body / Form --- */
 
 .config-body label {

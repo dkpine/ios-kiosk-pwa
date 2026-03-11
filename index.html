@@ -56,6 +56,17 @@
       </div>
 
       <div class="config-body">
+        <label for="tail-input">Tail Number</label>
+        <div class="lookup-row">
+          <input type="text" id="tail-input"
+                 placeholder="e.g. N41GT"
+                 autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button id="btn-lookup" class="btn btn-primary">Look Up</button>
+        </div>
+        <div id="lookup-msg" class="validation-msg"></div>
+
+        <div class="config-divider"><span>or enter manually</span></div>
+
         <label for="ios-addr-input">IOS Address</label>
         <input type="url" id="ios-addr-input"
                placeholder="e.g. http://10.38.1.1:3100/"
