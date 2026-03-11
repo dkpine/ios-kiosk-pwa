@@ -49,6 +49,8 @@
   var bgLogo = document.getElementById('bg-logo');
   var pageThemeToggle = document.getElementById('page-theme-toggle');
   var countdownRingWrap = countdownOverlay ? countdownOverlay.querySelector('.countdown-ring-wrap') : null;
+  var btnDiag = document.getElementById('btn-diag');
+  var diagResults = document.getElementById('diag-results');
 
   // ---- State ----
 
@@ -719,6 +721,68 @@
   }
 
   // ============================================================
+  // Network Diagnostics
+  // ============================================================
+
+  function runDiagnostics() {
+    if (!diagResults) return;
+    diagResults.classList.remove('hidden');
+    diagResults.innerHTML = '<span class="diag-info">Running diagnostics...</span>\n';
+
+    var tests = [
+      { label: 'HTTPS public (flyone-g.com)', url: 'https://flyone-g.com', mode: 'no-cors' },
+      { label: 'Protocol', url: location.protocol, skip: true }
+    ];
+
+    // Add configured IOS URL if available
+    if (currentUrl) {
+      tests.push({ label: 'IOS (' + currentUrl + ')', url: currentUrl, mode: 'no-cors' });
+      tests.push({ label: 'IOS cors mode', url: currentUrl, mode: 'cors' });
+    }
+
+    var lines = [];
+    lines.push('<span class="diag-info">Page origin: ' + location.origin + '</span>');
+    lines.push('<span class="diag-info">Protocol: ' + location.protocol + '</span>');
+    lines.push('<span class="diag-info">SW controller: ' + (navigator.serviceWorker && navigator.serviceWorker.controller ? 'yes' : 'none') + '</span>');
+    lines.push('<span class="diag-info">Configured URL: ' + (currentUrl || 'none') + '</span>');
+    lines.push('');
+
+    var fetchTests = tests.filter(function (t) { return !t.skip; });
+    var remaining = fetchTests.length;
+
+    if (remaining === 0) {
+      lines.push('<span class="diag-info">No fetch tests to run (no URL configured)</span>');
+      diagResults.innerHTML = lines.join('\n');
+      return;
+    }
+
+    diagResults.innerHTML = lines.join('\n') + '\n<span class="diag-info">Running ' + remaining + ' fetch tests...</span>';
+
+    fetchTests.forEach(function (test) {
+      var controller = new AbortController();
+      var timeout = setTimeout(function () { controller.abort(); }, 8000);
+
+      fetch(test.url, { mode: test.mode, signal: controller.signal })
+        .then(function (resp) {
+          clearTimeout(timeout);
+          lines.push('<span class="diag-pass">PASS</span> ' + test.label + ' → type=' + resp.type + ' status=' + resp.status);
+        })
+        .catch(function (err) {
+          clearTimeout(timeout);
+          lines.push('<span class="diag-fail">FAIL</span> ' + test.label + ' → ' + err.name + ': ' + err.message);
+        })
+        .then(function () {
+          remaining--;
+          if (remaining === 0) {
+            lines.push('');
+            lines.push('<span class="diag-info">Tests complete. Share these results for debugging.</span>');
+            diagResults.innerHTML = lines.join('\n');
+          }
+        });
+    });
+  }
+
+  // ============================================================
   // Button Handlers
   // ============================================================
 
@@ -728,6 +792,11 @@
     btnClose.addEventListener('click', function () {
       hideConfigOverlay();
     });
+
+    // Network diagnostics
+    if (btnDiag) {
+      btnDiag.addEventListener('click', runDiagnostics);
+    }
 
     // Theme toggle (config dialog)
     btnTheme.addEventListener('click', toggleTheme);
