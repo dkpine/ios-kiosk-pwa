@@ -14,7 +14,8 @@ var SHELL_ASSETS = [
   './manifest.json',
   './devices.json',
   './icons/icon-128.png',
-  './logos/one-G-Logo_Navy-White-navy_text.png'
+  './logos/one-G-Logo_Navy-White-navy_text.png',
+  './logos/one-G-Logo_Navy-White.png'
 ];
 
 // Install: pre-cache shell assets

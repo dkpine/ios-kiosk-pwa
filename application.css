@@ -84,6 +84,14 @@ html, body {
   opacity: 0.3;
 }
 
+/* Dark mode (default): show white-text logo, hide navy-text */
+.bg-logo-light { display: none; }
+.bg-logo-dark  { display: block; }
+
+/* Light mode: show navy-text logo, hide white-text */
+:root[data-theme="light"] .bg-logo-light { display: block; }
+:root[data-theme="light"] .bg-logo-dark  { display: none; }
+
 /* --- Iframe (fills entire viewport) --- */
 
 #ios-frame {
