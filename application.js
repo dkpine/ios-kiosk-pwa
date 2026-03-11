@@ -303,6 +303,8 @@
     if (bgLogo) bgLogo.classList.remove('hidden');
     showPageThemeToggle();
 
+    // Clear any previously loaded page so it doesn't show through
+    iframe.src = 'about:blank';
     iframe.classList.add('active');
 
     // Probe the URL with fetch first. The iframe onload event fires even
@@ -542,7 +544,13 @@
 
   function showConfigOverlay() {
     resetLoadingState();
+    cancelRetry();
     hidePageThemeToggle();
+    // Clear any loaded page — config is a fresh-start context
+    iframe.src = 'about:blank';
+    iframe.classList.remove('active');
+    hideBanner();
+    if (bgLogo) bgLogo.classList.add('hidden');
     addrInput.value = currentUrl || '';
     tailInput.value = '';
     manualSection.classList.add('hidden');
