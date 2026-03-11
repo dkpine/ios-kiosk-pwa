@@ -27,7 +27,7 @@
   var COUNTDOWN_SCHEDULE = [10, 30, 60];
   var RING_CIRCUMFERENCE = 2 * Math.PI * 52;
   var APP_VERSION = '3.5.0';
-  var EXTENSION_ID = 'ojhmfklcaknmocfiibdeclhahffofgan';
+  var EXTENSION_ID = 'ffcoooniadfdngdceeiopbkdljcgnoha';
   var DEVICES_JSON_URL = './devices.json';
 
   // ---- Extension Communication ----
