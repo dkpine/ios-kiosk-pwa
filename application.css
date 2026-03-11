@@ -67,6 +67,24 @@ html, body {
   color: var(--text-body);
 }
 
+/* --- Background Logo (visible behind iframe) --- */
+
+.bg-logo {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.bg-logo-img {
+  width: 180px;
+  height: 180px;
+  opacity: 0.35;
+}
+
 /* --- Iframe (fills entire viewport) --- */
 
 #ios-frame {

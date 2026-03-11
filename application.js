@@ -47,6 +47,7 @@
   var countdownSecondsEl = document.getElementById('countdown-seconds');
   var countdownRingProgress = document.getElementById('countdown-ring-progress');
   var countdownTroubleshootLink = document.getElementById('countdown-troubleshoot-link');
+  var bgLogo = document.getElementById('bg-logo');
 
   // ---- State ----
 
@@ -288,6 +289,7 @@
     cancelRetry();
     hideTroubleshootPanel();
     showBanner('connecting', 'Connecting to Instructor Station...');
+    if (bgLogo) bgLogo.classList.remove('hidden');
 
     iframe.classList.add('active');
 
@@ -336,6 +338,7 @@
 
   function handleConnectionSuccess() {
     retryCount = 0;
+    if (bgLogo) bgLogo.classList.add('hidden');
 
     // Show green success banner
     showBanner('success', 'Connected to Instructor Station');
@@ -352,6 +355,7 @@
   }
 
   function handleConnectionFailure(url) {
+    if (bgLogo) bgLogo.classList.add('hidden');
     // Show static banner — countdown ring handles the visual timer
     showBanner('error', 'Connection failed \u2014 tap for troubleshooting steps');
     connectionStatus.onclick = function () {
