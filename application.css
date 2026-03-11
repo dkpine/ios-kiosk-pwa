@@ -654,16 +654,20 @@ kbd {
 .config-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid var(--border-subtle);
 }
 
+.config-footer .theme-toggle {
+  margin-left: auto;
+}
+
 #version-display {
   font-size: 12px;
   color: var(--text-faint);
-  margin-left: 6px;
+  margin-left: 4px;
 }
 
 /* --- Loading Spinner (after successful lookup) --- */
