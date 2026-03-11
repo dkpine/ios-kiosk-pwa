@@ -16,7 +16,7 @@
   // Countdown retry schedule (seconds): 10s, 30s, 60s, then 60s forever
   var COUNTDOWN_SCHEDULE = [10, 30, 60];
   var RING_CIRCUMFERENCE = 2 * Math.PI * 52; // ~326.73, matches SVG r=52
-  var APP_VERSION = '1.08';
+  var APP_VERSION = '1.09';
 
   // ---- DOM References ----
 
@@ -48,6 +48,8 @@
   var countdownRingProgress = document.getElementById('countdown-ring-progress');
   var countdownTroubleshootLink = document.getElementById('countdown-troubleshoot-link');
   var bgLogo = document.getElementById('bg-logo');
+  var pageThemeToggle = document.getElementById('page-theme-toggle');
+  var countdownRingWrap = countdownOverlay ? countdownOverlay.querySelector('.countdown-ring-wrap') : null;
 
   // ---- State ----
 
@@ -58,6 +60,7 @@
   var retryCount = 0;
   var successTimer = null;
   var wakeLock = null;
+  var countdownRetryUrl = null;
 
   // ============================================================
   // Initialization
@@ -212,6 +215,14 @@
     }
   }
 
+  function showPageThemeToggle() {
+    if (pageThemeToggle) pageThemeToggle.classList.remove('hidden');
+  }
+
+  function hidePageThemeToggle() {
+    if (pageThemeToggle) pageThemeToggle.classList.add('hidden');
+  }
+
   // ============================================================
   // URL Normalization & Validation
   // ============================================================
@@ -290,6 +301,7 @@
     hideTroubleshootPanel();
     showBanner('connecting', 'Connecting to Instructor Station...');
     if (bgLogo) bgLogo.classList.remove('hidden');
+    showPageThemeToggle();
 
     iframe.classList.add('active');
 
@@ -339,6 +351,7 @@
   function handleConnectionSuccess() {
     retryCount = 0;
     if (bgLogo) bgLogo.classList.add('hidden');
+    hidePageThemeToggle();
 
     // Show green success banner
     showBanner('success', 'Connected to Instructor Station');
@@ -374,16 +387,33 @@
     showTroubleshootPanel();
   }
 
+  function onRingClickRetryNow(e) {
+    e.stopPropagation(); // Don't trigger troubleshoot panel
+    if (countdownRetryUrl) {
+      stopCountdown();
+      retryCount++;
+      navigateToUrl(countdownRetryUrl);
+    }
+  }
+
   function startCountdown(url) {
     stopCountdown();
+    countdownRetryUrl = url;
     var totalSeconds = getCountdownDuration();
     var remaining = totalSeconds;
 
-    // Any click anywhere on the page opens troubleshooting
-    document.addEventListener('click', onPageClickDuringCountdown);
+    // Show the centered countdown overlay and make it intercept all clicks
+    // (the iframe at z-index 1 would eat clicks otherwise)
+    if (countdownOverlay) {
+      countdownOverlay.classList.remove('hidden');
+      countdownOverlay.style.pointerEvents = 'auto';
+      countdownOverlay.addEventListener('click', onPageClickDuringCountdown);
+    }
 
-    // Show the centered countdown overlay
-    if (countdownOverlay) countdownOverlay.classList.remove('hidden');
+    // Ring click = immediate retry
+    if (countdownRingWrap) {
+      countdownRingWrap.addEventListener('click', onRingClickRetryNow);
+    }
 
     // Set initial number
     if (countdownSecondsEl) countdownSecondsEl.textContent = remaining;
@@ -415,7 +445,15 @@
   }
 
   function stopCountdown() {
-    document.removeEventListener('click', onPageClickDuringCountdown);
+    if (countdownOverlay) {
+      countdownOverlay.removeEventListener('click', onPageClickDuringCountdown);
+      countdownOverlay.style.pointerEvents = '';
+      countdownOverlay.classList.add('hidden');
+    }
+    if (countdownRingWrap) {
+      countdownRingWrap.removeEventListener('click', onRingClickRetryNow);
+    }
+    countdownRetryUrl = null;
     if (countdownInterval) {
       clearInterval(countdownInterval);
       countdownInterval = null;
@@ -424,8 +462,6 @@
       clearTimeout(retryTimer);
       retryTimer = null;
     }
-    // Hide the centered overlay
-    if (countdownOverlay) countdownOverlay.classList.add('hidden');
   }
 
   function cancelRetry() {
@@ -470,6 +506,7 @@
   function showTroubleshootPanel() {
     // Pause the countdown while viewing troubleshooting steps
     stopCountdown();
+    hidePageThemeToggle();
     troubleshootPanel.classList.remove('hidden');
   }
 
@@ -490,6 +527,7 @@
 
   function showConfigOverlay() {
     resetLoadingState();
+    hidePageThemeToggle();
     addrInput.value = currentUrl || '';
     tailInput.value = '';
     manualSection.classList.add('hidden');
@@ -573,8 +611,16 @@
       hideConfigOverlay();
     });
 
-    // Theme toggle
+    // Theme toggle (config dialog)
     btnTheme.addEventListener('click', toggleTheme);
+
+    // Page-level theme toggle (connecting / failed screens)
+    if (pageThemeToggle) {
+      pageThemeToggle.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleTheme();
+      });
+    }
 
     // Click outside config dialog to close
     configOverlay.addEventListener('click', function (e) {
@@ -610,6 +656,7 @@
     if (countdownTroubleshootLink) {
       countdownTroubleshootLink.addEventListener('click', function (e) {
         e.preventDefault();
+        e.stopPropagation();
         showTroubleshootPanel();
       });
     }
