@@ -26,8 +26,8 @@
   var SUCCESS_BANNER_MS = 2000;
   var COUNTDOWN_SCHEDULE = [10, 30, 60];
   var RING_CIRCUMFERENCE = 2 * Math.PI * 52;
-  var APP_VERSION = '3.4.0';
-  var EXTENSION_ID = 'ffcoooniadfdngdceeiopbkdljcgnoha';
+  var APP_VERSION = '3.5.0';
+  var EXTENSION_ID = 'ojhmfklcaknmocfiibdeclhahffofgan';
   var DEVICES_JSON_URL = './devices.json';
 
   // ---- Extension Communication ----
@@ -592,7 +592,14 @@
     showPageThemeToggle();
 
     if (!extensionAvailable) {
-      directProbe(url);
+      // Without the extension, we can't probe HTTP from this HTTPS page
+      // (mixed content blocks it). But top-level navigation HTTPS→HTTP
+      // is allowed, so just navigate directly. The watchdog script
+      // (injected by the extension into the IOS page) will handle
+      // crash recovery. If the extension truly isn't running, we still
+      // navigate — it's better than being stuck on a blank config page.
+      console.log('[Kiosk] No extension — navigating directly to ' + url);
+      handleConnectionSuccess(url);
       return;
     }
 
@@ -605,22 +612,6 @@
         handleConnectionFailure(url, err);
       }
     });
-  }
-
-  function directProbe(url) {
-    var controller = new AbortController();
-    var timeout = setTimeout(function () { controller.abort(); }, PROBE_TIMEOUT_MS);
-
-    fetch(url, { mode: 'no-cors', signal: controller.signal })
-      .then(function () {
-        clearTimeout(timeout);
-        handleConnectionSuccess(url);
-      })
-      .catch(function (err) {
-        clearTimeout(timeout);
-        console.error('[Kiosk] Direct probe failed for ' + url + ':', err.message);
-        handleConnectionFailure(url, err);
-      });
   }
 
   function handleConnectionSuccess(url) {
