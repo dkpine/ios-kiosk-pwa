@@ -80,9 +80,8 @@ html, body {
 }
 
 .bg-logo-img {
-  width: 180px;
-  height: 180px;
-  opacity: 0.35;
+  width: 240px;
+  opacity: 0.3;
 }
 
 /* --- Iframe (fills entire viewport) --- */
