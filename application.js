@@ -403,10 +403,11 @@
 
   function onRingClickRetryNow(e) {
     e.stopPropagation(); // Don't trigger troubleshoot panel
-    if (countdownRetryUrl) {
+    var url = countdownRetryUrl; // save before stopCountdown nulls it
+    if (url) {
       stopCountdown();
       retryCount++;
-      navigateToUrl(countdownRetryUrl);
+      navigateToUrl(url);
     }
   }
 
