@@ -11,13 +11,11 @@
   var STORAGE_KEY = 'ios_addr';
   var THEME_KEY = 'ios_theme';
   var DEFAULT_URL = 'https://flyone-g.com';
-  var RETRY_INITIAL_MS = 5000;
-  var RETRY_BACKOFF = 1.5;
-  var RETRY_MAX_MS = 30000;
   var PROBE_TIMEOUT_MS = 8000;
-  var MAX_AUTO_RETRIES = 1;
   var SUCCESS_BANNER_MS = 3000;
-  var APP_VERSION = '1.05';
+  // Countdown retry schedule (seconds): 5s, 10s, 30s, 60s, then 60s forever
+  var COUNTDOWN_SCHEDULE = [5, 10, 30, 60];
+  var APP_VERSION = '1.06';
 
   // ---- DOM References ----
 
@@ -44,12 +42,15 @@
   var versionDisplay = document.getElementById('version-display');
   var configLoading = document.getElementById('config-loading');
   var configDialog = configOverlay ? configOverlay.querySelector('.config-dialog') : null;
+  var countdownSecondsEl = document.getElementById('countdown-seconds');
+  var countdownProgress = document.getElementById('countdown-progress');
 
   // ---- State ----
 
   var deviceDb = null; // loaded from devices.json
   var currentUrl = null;
   var retryTimer = null;
+  var countdownInterval = null;
   var retryCount = 0;
   var successTimer = null;
   var wakeLock = null;
@@ -348,37 +349,69 @@
   }
 
   function handleConnectionFailure(url) {
-    retryCount++;
-
-    if (retryCount >= MAX_AUTO_RETRIES) {
-      // Stop auto-retrying and show troubleshooting steps
-      showBanner('error', 'Connection failed — tap here for troubleshooting steps');
-      connectionStatus.onclick = function () {
-        showTroubleshootPanel();
-      };
-      return;
-    }
-
-    var interval = Math.min(
-      RETRY_INITIAL_MS * Math.pow(RETRY_BACKOFF, retryCount - 1),
-      RETRY_MAX_MS
-    );
-    var seconds = Math.ceil(interval / 1000);
-
-    showBanner('connecting',
-      'Unable to reach Instructor Station. Retrying in ' + seconds + 's... (attempt ' + retryCount + '/' + MAX_AUTO_RETRIES + ')'
-    );
-
-    retryTimer = setTimeout(function () {
-      navigateToUrl(url);
-    }, interval);
+    // Show troubleshoot panel with countdown timer
+    showBanner('error', 'Connection failed');
+    showTroubleshootPanel();
+    startCountdown(url);
   }
 
-  function cancelRetry() {
+  function getCountdownDuration() {
+    // Use schedule array, capping at the last value for subsequent retries
+    var index = Math.min(retryCount, COUNTDOWN_SCHEDULE.length - 1);
+    return COUNTDOWN_SCHEDULE[index];
+  }
+
+  function startCountdown(url) {
+    stopCountdown();
+    var totalSeconds = getCountdownDuration();
+    var remaining = totalSeconds;
+
+    // Set initial display
+    if (countdownSecondsEl) countdownSecondsEl.textContent = remaining;
+    if (countdownProgress) {
+      // Reset to full width instantly, then animate down
+      countdownProgress.style.transition = 'none';
+      countdownProgress.style.width = '100%';
+    }
+
+    // Start the shrinking animation after a brief repaint
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (countdownProgress) {
+          countdownProgress.style.transition = 'width ' + totalSeconds + 's linear';
+          countdownProgress.style.width = '0%';
+        }
+      });
+    });
+
+    countdownInterval = setInterval(function () {
+      remaining--;
+      if (countdownSecondsEl) countdownSecondsEl.textContent = Math.max(remaining, 0);
+
+      if (remaining <= 0) {
+        stopCountdown();
+        retryCount++;
+        // Auto-retry: navigate directly (don't go through hideTroubleshootPanel
+        // to avoid the recursion guard resetting retryCount)
+        troubleshootPanel.classList.add('hidden');
+        navigateToUrl(url);
+      }
+    }, 1000);
+  }
+
+  function stopCountdown() {
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
     if (retryTimer) {
       clearTimeout(retryTimer);
       retryTimer = null;
     }
+  }
+
+  function cancelRetry() {
+    stopCountdown();
     if (successTimer) {
       clearTimeout(successTimer);
       successTimer = null;
@@ -423,6 +456,7 @@
   function hideTroubleshootPanel() {
     // Only trigger reconnection if the panel was actually visible
     var wasVisible = !troubleshootPanel.classList.contains('hidden');
+    stopCountdown();
     troubleshootPanel.classList.add('hidden');
 
     if (wasVisible && currentUrl) {

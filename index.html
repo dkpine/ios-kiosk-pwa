@@ -38,8 +38,14 @@
         <li>Only after completing step 5, proceed with powering up the ATD like normal. After the startup countdown finishes, click the button below to attempt reconnection.</li>
       </ol>
       <p class="troubleshoot-support">If the failure persists, contact one-G support for further investigation.</p>
+      <div class="countdown-bar">
+        <div class="countdown-text">Retrying in <span id="countdown-seconds">30</span>s</div>
+        <div class="countdown-track">
+          <div id="countdown-progress" class="countdown-fill"></div>
+        </div>
+      </div>
       <div class="troubleshoot-actions">
-        <button id="btn-retry" class="btn btn-primary">Retry Connection</button>
+        <button id="btn-retry" class="btn btn-primary">Retry Now</button>
         <button id="btn-troubleshoot-close" class="btn btn-secondary">Dismiss</button>
       </div>
       <p class="troubleshoot-config-link">Or, edit the one-G IOS Kiosk address <a href="#" id="btn-open-config">configuration</a> (not necessary under normal circumstances)</p>
