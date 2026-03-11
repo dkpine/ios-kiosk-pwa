@@ -226,10 +226,15 @@ html, body {
   justify-content: center;
   font-size: 16px;
   font-weight: 700;
-  color: var(--accent);
+  color: #ffffff;
   text-align: center;
   line-height: 1.2;
+  white-space: nowrap;
   pointer-events: none;
+}
+
+:root[data-theme="light"] .countdown-retry-label {
+  color: var(--accent);
 }
 
 .countdown-ring-wrap {
