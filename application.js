@@ -472,6 +472,10 @@
         e.preventDefault();
         toggleConfigOverlay();
       }
+      if (e.key === 'Escape' && !configOverlay.classList.contains('hidden')) {
+        e.preventDefault();
+        hideConfigOverlay();
+      }
     });
   }
 
@@ -488,6 +492,13 @@
 
     // Theme toggle
     btnTheme.addEventListener('click', toggleTheme);
+
+    // Click outside config dialog to close
+    configOverlay.addEventListener('click', function (e) {
+      if (e.target === configOverlay) {
+        hideConfigOverlay();
+      }
+    });
 
     // Troubleshooting panel buttons
     btnRetry.addEventListener('click', function () {
