@@ -74,8 +74,10 @@ html, body {
   inset: 0;
   z-index: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 24px;
   pointer-events: none;
 }
 
@@ -91,6 +93,29 @@ html, body {
 /* Light mode: show navy-text logo, hide white-text */
 :root[data-theme="light"] .bg-logo-light { display: block; }
 :root[data-theme="light"] .bg-logo-dark  { display: none; }
+
+/* Loading dots */
+.bg-logo-dots {
+  display: flex;
+  gap: 8px;
+}
+
+.bg-logo-dots .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  opacity: 0.15;
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+
+.bg-logo-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+.bg-logo-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dotPulse {
+  0%, 80%, 100% { opacity: 0.15; transform: scale(0.8); }
+  40% { opacity: 0.4; transform: scale(1); }
+}
 
 /* --- Iframe (fills entire viewport) --- */
 
