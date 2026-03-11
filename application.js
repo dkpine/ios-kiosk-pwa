@@ -419,6 +419,10 @@
     configOverlay.classList.remove('hidden');
     clearValidation();
     clearLookupMsg();
+
+    // Only show Close button if a URL is already configured
+    btnClose.style.display = currentUrl ? '' : 'none';
+
     setTimeout(function () {
       tailInput.focus();
     }, 100);
