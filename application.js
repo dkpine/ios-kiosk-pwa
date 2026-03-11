@@ -1,6 +1,6 @@
 /* ============================================================
    Instructor Station Kiosk - GitHub Pages App
-   Core application logic — v3.1.0
+   Core application logic — v3.3.0
 
    This runs from the GitHub Pages HTTPS origin. HTTP fetch
    probes to private-IP IOS servers are proxied through the
@@ -26,7 +26,7 @@
   var SUCCESS_BANNER_MS = 2000;
   var COUNTDOWN_SCHEDULE = [10, 30, 60];
   var RING_CIRCUMFERENCE = 2 * Math.PI * 52;
-  var APP_VERSION = '3.2.0';
+  var APP_VERSION = '3.3.0';
   var DEVICES_JSON_URL = './devices.json';
 
   // ---- Extension Communication (via content script bridge) ----
