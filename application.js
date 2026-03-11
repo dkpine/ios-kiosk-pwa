@@ -437,6 +437,10 @@
     if (!currentUrl) return;
     configOverlay.classList.add('hidden');
     clearValidation();
+
+    // Re-attempt connection to the IOS whenever the overlay is dismissed
+    retryCount = 0;
+    navigateToUrl(currentUrl);
   }
 
   function toggleConfigOverlay() {
@@ -523,6 +527,10 @@
 
     btnTroubleshootClose.addEventListener('click', function () {
       hideTroubleshootPanel();
+      if (currentUrl) {
+        retryCount = 0;
+        navigateToUrl(currentUrl);
+      }
     });
 
     // Troubleshoot panel → open config link
