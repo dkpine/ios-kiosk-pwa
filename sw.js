@@ -2,9 +2,15 @@
    Instructor Station Kiosk - Service Worker
    Caches the PWA shell files for offline resilience.
    Does NOT cache iframe content (live instructor station data).
+
+   Strategy: NETWORK-FIRST with cache fallback.
+   Always tries to fetch fresh code from the server. If the
+   network is down, falls back to the cached copy. This ensures
+   kiosks pick up new deployments on the next page load without
+   needing manual cache clears.
    ============================================================ */
 
-var CACHE_NAME = 'ios-kiosk-shell-v1.19';
+var CACHE_NAME = 'ios-kiosk-shell-v1.20';
 
 var SHELL_ASSETS = [
   './',
@@ -18,7 +24,7 @@ var SHELL_ASSETS = [
   './logos/one-G-Logo_Navy-White.png'
 ];
 
-// Install: pre-cache shell assets
+// Install: pre-cache shell assets for offline fallback
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -48,7 +54,7 @@ self.addEventListener('activate', function (event) {
   );
 });
 
-// Fetch: cache-first for shell assets, network pass-through for everything else
+// Fetch: network-first for same-origin, pass-through for cross-origin
 self.addEventListener('fetch', function (event) {
   var url = new URL(event.request.url);
 
@@ -58,23 +64,20 @@ self.addEventListener('fetch', function (event) {
   }
 
   event.respondWith(
-    caches.match(event.request)
-      .then(function (cached) {
-        if (cached) {
-          return cached;
-        }
-        return fetch(event.request).then(function (response) {
-          // Don't cache non-ok responses
-          if (!response || response.status !== 200) {
-            return response;
-          }
-          // Cache a copy for future use
+    fetch(event.request)
+      .then(function (response) {
+        // Got a fresh response — update the cache and return it
+        if (response && response.status === 200) {
           var responseClone = response.clone();
           caches.open(CACHE_NAME).then(function (cache) {
             cache.put(event.request, responseClone);
           });
-          return response;
-        });
+        }
+        return response;
+      })
+      .catch(function () {
+        // Network failed — fall back to cache (offline resilience)
+        return caches.match(event.request);
       })
   );
 });
