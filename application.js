@@ -365,10 +365,18 @@
     return COUNTDOWN_SCHEDULE[index];
   }
 
+  // Named handler so we can add/remove it cleanly
+  function onPageClickDuringCountdown() {
+    showTroubleshootPanel();
+  }
+
   function startCountdown(url) {
     stopCountdown();
     var totalSeconds = getCountdownDuration();
     var remaining = totalSeconds;
+
+    // Any click anywhere on the page opens troubleshooting
+    document.addEventListener('click', onPageClickDuringCountdown);
 
     // Show the centered countdown overlay
     if (countdownOverlay) countdownOverlay.classList.remove('hidden');
@@ -403,6 +411,7 @@
   }
 
   function stopCountdown() {
+    document.removeEventListener('click', onPageClickDuringCountdown);
     if (countdownInterval) {
       clearInterval(countdownInterval);
       countdownInterval = null;

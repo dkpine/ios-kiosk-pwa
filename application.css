@@ -177,7 +177,7 @@ html, body {
 .countdown-hint {
   color: var(--text-faint);
   font-size: 13px;
-  text-decoration: underline;
+  text-decoration: none;
   pointer-events: auto;
   cursor: pointer;
 }
