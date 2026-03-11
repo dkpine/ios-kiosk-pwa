@@ -17,7 +17,7 @@
   var PROBE_TIMEOUT_MS = 8000;
   var MAX_AUTO_RETRIES = 1;
   var SUCCESS_BANNER_MS = 3000;
-  var APP_VERSION = '1.04';
+  var APP_VERSION = '1.05';
 
   // ---- DOM References ----
 
@@ -42,6 +42,8 @@
   var btnManualToggle = document.getElementById('btn-manual-toggle');
   var manualSection = document.getElementById('manual-section');
   var versionDisplay = document.getElementById('version-display');
+  var configLoading = document.getElementById('config-loading');
+  var configDialog = configOverlay ? configOverlay.querySelector('.config-dialog') : null;
 
   // ---- State ----
 
@@ -109,25 +111,36 @@
       return;
     }
 
-    // Found — populate the address field and auto-save
+    // Found — save and transition to loading spinner
     addrInput.value = url;
-    lookupMsg.textContent = 'Found! ' + url;
-    lookupMsg.className = 'validation-msg success';
-
     saveUrl(url);
-    showValidation('Saved! Connecting...', 'success');
-
-    setTimeout(function () {
-      navigateToUrl(url);
-      configOverlay.classList.add('hidden');
-      clearValidation();
-      clearLookupMsg();
-    }, 600);
+    showLoadingAndConnect(url);
   }
 
   function clearLookupMsg() {
     lookupMsg.textContent = '';
     lookupMsg.className = 'validation-msg';
+  }
+
+  // Shared loading transition: replaces config UI with spinner, then navigates
+  function showLoadingAndConnect(url) {
+    // Switch dialog to loading state (CSS hides header/body/footer, shrinks dialog)
+    if (configDialog) configDialog.classList.add('loading-state');
+    if (configLoading) configLoading.classList.remove('hidden');
+
+    // After the CSS transition + a brief pause, navigate and dismiss
+    setTimeout(function () {
+      navigateToUrl(url);
+      configOverlay.classList.add('hidden');
+      resetLoadingState();
+    }, 1200);
+  }
+
+  function resetLoadingState() {
+    if (configDialog) configDialog.classList.remove('loading-state');
+    if (configLoading) configLoading.classList.add('hidden');
+    clearValidation();
+    clearLookupMsg();
   }
 
   // ============================================================
@@ -423,6 +436,7 @@
   // ============================================================
 
   function showConfigOverlay() {
+    resetLoadingState();
     addrInput.value = currentUrl || '';
     tailInput.value = '';
     manualSection.classList.add('hidden');
@@ -586,13 +600,7 @@
     }
 
     saveUrl(result.url);
-    showValidation('Saved! Connecting...', 'success');
-
-    setTimeout(function () {
-      navigateToUrl(result.url);
-      configOverlay.classList.add('hidden');
-      clearValidation();
-    }, 400);
+    showLoadingAndConnect(result.url);
   }
 
   function handleClear() {
