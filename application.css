@@ -191,6 +191,18 @@ html, body {
   flex-wrap: wrap;
 }
 
+.troubleshoot-config-link {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 16px;
+}
+
+.troubleshoot-config-link a {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* --- Config Overlay --- */
 
 #config-overlay {

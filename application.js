@@ -35,6 +35,7 @@
   var btnClear = document.getElementById('btn-clear');
   var btnClose = document.getElementById('btn-close');
   var btnTheme = document.getElementById('btn-theme');
+  var btnOpenConfig = document.getElementById('btn-open-config');
   var versionDisplay = document.getElementById('version-display');
 
   // ---- State ----
@@ -404,6 +405,13 @@
 
     btnTroubleshootClose.addEventListener('click', function () {
       hideTroubleshootPanel();
+    });
+
+    // Troubleshoot panel → open config link
+    btnOpenConfig.addEventListener('click', function (e) {
+      e.preventDefault();
+      hideTroubleshootPanel();
+      showConfigOverlay();
     });
 
     // Enter key in input triggers save
