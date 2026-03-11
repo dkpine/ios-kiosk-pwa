@@ -1,13 +1,16 @@
 /* ============================================================
    Instructor Station Kiosk - GitHub Pages App
-   Core application logic — v3.0.0
+   Core application logic — v3.1.0
 
    This runs from the GitHub Pages HTTPS origin. HTTP fetch
    probes to private-IP IOS servers are proxied through the
-   companion Chrome extension via externally_connectable
-   messaging. Once the IOS is found, the page navigates
-   directly to the HTTP URL (top-level navigation is not
-   subject to mixed-content blocking).
+   companion Chrome extension via a content script bridge.
+   The content script (injected by the extension) relays
+   postMessage calls to the extension's service worker.
+
+   Once the IOS is found, the page navigates directly to
+   the HTTP URL (top-level navigation is not subject to
+   mixed-content blocking).
 
    devices.json is fetched from the same GitHub Pages origin.
    ============================================================ */
@@ -17,41 +20,79 @@
 
   // ---- Constants ----
 
-  var EXT_ID = 'ffcoooniadfdngdceeiopbkdljcgnoha';
   var STORAGE_KEY = 'ios_addr';
   var THEME_KEY = 'ios_theme';
   var PROBE_TIMEOUT_MS = 8000;
   var SUCCESS_BANNER_MS = 2000;
   var COUNTDOWN_SCHEDULE = [10, 30, 60];
   var RING_CIRCUMFERENCE = 2 * Math.PI * 52;
-  var APP_VERSION = '3.0.0';
+  var APP_VERSION = '3.1.0';
   var DEVICES_JSON_URL = './devices.json';
 
-  // ---- Extension Communication ----
+  // ---- Extension Communication (via content script bridge) ----
+  //
+  // The extension injects content.js into this page. We communicate
+  // via window.postMessage. Each request gets a unique requestId so
+  // we can match replies to callbacks.
 
   var extensionAvailable = false;
+  var pendingRequests = {};
+  var requestCounter = 0;
 
-  function sendToExtension(message, callback) {
-    if (!chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
-      if (callback) callback({ ok: false, error: 'chrome.runtime not available' });
+  // Listen for replies from the content script
+  window.addEventListener('message', function (event) {
+    if (event.source !== window) return;
+    var data = event.data;
+    if (!data || !data.iosKioskReply) return;
+
+    // Handle unsolicited "extensionReady" announcement
+    if (data.type === 'extensionReady') {
+      extensionAvailable = true;
+      extensionVersion = data.version || '?';
       return;
     }
-    try {
-      chrome.runtime.sendMessage(EXT_ID, message, function (response) {
-        if (chrome.runtime.lastError) {
-          if (callback) callback({ ok: false, error: chrome.runtime.lastError.message });
-          return;
-        }
-        if (callback) callback(response || { ok: false, error: 'No response' });
-      });
-    } catch (e) {
-      if (callback) callback({ ok: false, error: e.message });
+
+    // Match to pending request
+    var id = data.requestId;
+    if (id && pendingRequests[id]) {
+      var cb = pendingRequests[id];
+      delete pendingRequests[id];
+      cb(data);
     }
+  });
+
+  var extensionVersion = '?';
+
+  function sendToExtension(message, callback) {
+    var id = ++requestCounter;
+    message.iosKiosk = true;
+    message.requestId = id;
+
+    if (callback) {
+      pendingRequests[id] = callback;
+      // Timeout: if no reply in 3 seconds, assume extension not available
+      setTimeout(function () {
+        if (pendingRequests[id]) {
+          delete pendingRequests[id];
+          callback({ ok: false, error: 'Extension timeout' });
+        }
+      }, 3000);
+    }
+
+    window.postMessage(message, '*');
   }
 
   function checkExtension(callback) {
+    // If the content script already announced itself, we're good
+    if (extensionAvailable) {
+      if (callback) callback(true, { ok: true, version: extensionVersion });
+      return;
+    }
+
+    // Otherwise send a ping and wait
     sendToExtension({ type: 'ping' }, function (response) {
       extensionAvailable = !!(response && response.ok);
+      if (response && response.version) extensionVersion = response.version;
       if (callback) callback(extensionAvailable, response);
     });
   }
@@ -166,10 +207,10 @@
     checkExtension(function (available, response) {
       if (extStatus) {
         if (available) {
-          extStatus.textContent = 'Extension v' + (response.version || '?') + ' connected';
+          extStatus.textContent = 'Ext v' + (response.version || extensionVersion) + ' OK';
           extStatus.className = 'ext-status ext-ok';
         } else {
-          extStatus.textContent = 'Extension not detected \u2014 HTTP probing unavailable';
+          extStatus.textContent = 'Extension not detected';
           extStatus.className = 'ext-status ext-missing';
         }
       }
@@ -707,7 +748,7 @@
     var lines = [];
     lines.push('<span class="diag-info">Page origin: ' + location.origin + '</span>');
     lines.push('<span class="diag-info">Protocol: ' + location.protocol + '</span>');
-    lines.push('<span class="diag-info">Extension: ' + (extensionAvailable ? 'yes' : 'NO \u2014 HTTP probing disabled') + '</span>');
+    lines.push('<span class="diag-info">Extension: ' + (extensionAvailable ? 'yes (v' + extensionVersion + ')' : 'NO \u2014 HTTP probing disabled') + '</span>');
     lines.push('<span class="diag-info">App version: v' + APP_VERSION + '</span>');
     lines.push('<span class="diag-info">Configured URL: ' + (currentUrl || 'none') + '</span>');
     lines.push('');
