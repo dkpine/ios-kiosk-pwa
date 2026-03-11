@@ -368,12 +368,20 @@
       }
     }
 
-    // Poll for extension (retries for ~20 seconds in case of kiosk timing)
+    // Boot immediately without waiting for extension.
+    // The extension poll continues in the background — if it arrives
+    // late, the onExtensionReady callback will re-trigger with proxy support.
+    bootWithoutExtension();
+
+    // Keep polling for extension in background (if it eventually loads,
+    // the late-arrival callback registered in bootWithoutExtension fires)
     checkExtension(function (available) {
       if (available) {
-        bootWithExtension();
-      } else {
-        bootWithoutExtension();
+        updateExtStatus(true, { version: extensionVersion });
+        // If we haven't navigated away yet, re-boot with extension
+        if (!document.hidden) {
+          bootWithExtension();
+        }
       }
     });
   }
