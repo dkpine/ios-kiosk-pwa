@@ -1,6 +1,6 @@
 /* ============================================================
    Instructor Station Kiosk - PWA Config Shell
-   Core application logic
+   Core application logic — v1.01
    ============================================================ */
 
 (function () {
@@ -14,7 +14,9 @@
   var RETRY_BACKOFF = 1.5;
   var RETRY_MAX_MS = 30000;
   var PROBE_TIMEOUT_MS = 8000;
-  var APP_VERSION = '1.0';
+  var MAX_AUTO_RETRIES = 5;
+  var SUCCESS_BANNER_MS = 3000;
+  var APP_VERSION = '1.01';
 
   // ---- DOM References ----
 
@@ -22,6 +24,9 @@
   var configOverlay = document.getElementById('config-overlay');
   var connectionStatus = document.getElementById('connection-status');
   var statusMessage = document.getElementById('status-message');
+  var troubleshootPanel = document.getElementById('troubleshoot-panel');
+  var btnRetry = document.getElementById('btn-retry');
+  var btnTroubleshootClose = document.getElementById('btn-troubleshoot-close');
   var addrInput = document.getElementById('ios-addr-input');
   var validationMsg = document.getElementById('validation-msg');
   var currentUrlDisplay = document.getElementById('current-url-display');
@@ -35,6 +40,7 @@
   var currentUrl = null;
   var retryTimer = null;
   var retryCount = 0;
+  var successTimer = null;
   var wakeLock = null;
 
   // ============================================================
@@ -167,7 +173,8 @@
 
   function navigateToUrl(url) {
     cancelRetry();
-    showConnectionStatus('Connecting to Instructor Station...');
+    hideTroubleshootPanel();
+    showBanner('connecting', 'Connecting to Instructor Station...');
 
     iframe.classList.add('active');
 
@@ -182,23 +189,49 @@
     // Set up load handler before setting src
     iframe.onload = function () {
       clearTimeout(loadTimeout);
-      hideConnectionStatus();
-      retryCount = 0;
+      handleConnectionSuccess();
     };
 
     iframe.src = url;
   }
 
+  function handleConnectionSuccess() {
+    retryCount = 0;
+
+    // Show green success banner
+    showBanner('success', 'Connected to Instructor Station');
+
+    // Slide it away after a few seconds
+    if (successTimer) clearTimeout(successTimer);
+    successTimer = setTimeout(function () {
+      connectionStatus.classList.add('banner-slide-out');
+      // After the CSS transition finishes, hide completely
+      setTimeout(function () {
+        hideBanner();
+      }, 450);
+    }, SUCCESS_BANNER_MS);
+  }
+
   function handleConnectionFailure(url) {
     retryCount++;
+
+    if (retryCount >= MAX_AUTO_RETRIES) {
+      // Stop auto-retrying and show troubleshooting steps
+      showBanner('error', 'Connection failed — tap here for troubleshooting steps');
+      connectionStatus.onclick = function () {
+        showTroubleshootPanel();
+      };
+      return;
+    }
+
     var interval = Math.min(
       RETRY_INITIAL_MS * Math.pow(RETRY_BACKOFF, retryCount - 1),
       RETRY_MAX_MS
     );
     var seconds = Math.ceil(interval / 1000);
 
-    showConnectionStatus(
-      'Unable to reach Instructor Station. Retrying in ' + seconds + 's... (attempt ' + retryCount + ')'
+    showBanner('connecting',
+      'Unable to reach Instructor Station. Retrying in ' + seconds + 's... (attempt ' + retryCount + '/' + MAX_AUTO_RETRIES + ')'
     );
 
     retryTimer = setTimeout(function () {
@@ -211,20 +244,49 @@
       clearTimeout(retryTimer);
       retryTimer = null;
     }
+    if (successTimer) {
+      clearTimeout(successTimer);
+      successTimer = null;
+    }
     retryCount = 0;
   }
 
   // ============================================================
-  // Connection Status UI
+  // Banner UI (amber = connecting, green = success, red = error)
   // ============================================================
 
-  function showConnectionStatus(message) {
+  function showBanner(type, message) {
+    if (successTimer) {
+      clearTimeout(successTimer);
+      successTimer = null;
+    }
     statusMessage.textContent = message;
-    connectionStatus.classList.remove('hidden');
+    connectionStatus.className = 'banner'; // reset all modifier classes
+    connectionStatus.onclick = null;
+
+    if (type === 'success') {
+      connectionStatus.classList.add('banner-success');
+    } else if (type === 'error') {
+      connectionStatus.classList.add('banner-error');
+    }
+    // 'connecting' uses the default amber style (no modifier class needed)
   }
 
-  function hideConnectionStatus() {
-    connectionStatus.classList.add('hidden');
+  function hideBanner() {
+    connectionStatus.className = 'banner hidden';
+    connectionStatus.onclick = null;
+  }
+
+  // ============================================================
+  // Troubleshooting Panel
+  // ============================================================
+
+  function showTroubleshootPanel() {
+    troubleshootPanel.classList.remove('hidden');
+  }
+
+  function hideTroubleshootPanel() {
+    troubleshootPanel.classList.add('hidden');
   }
 
   // ============================================================
@@ -292,6 +354,19 @@
     btnClear.addEventListener('click', handleClear);
     btnClose.addEventListener('click', function () {
       hideConfigOverlay();
+    });
+
+    // Troubleshooting panel buttons
+    btnRetry.addEventListener('click', function () {
+      hideTroubleshootPanel();
+      if (currentUrl) {
+        retryCount = 0;
+        navigateToUrl(currentUrl);
+      }
+    });
+
+    btnTroubleshootClose.addEventListener('click', function () {
+      hideTroubleshootPanel();
     });
 
     // Enter key in input triggers save

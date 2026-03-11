@@ -19,9 +19,30 @@
           allow="fullscreen; autoplay"
           allowfullscreen></iframe>
 
-  <!-- CONNECTION STATUS BANNER: shown during connection retries -->
-  <div id="connection-status" class="hidden">
+  <!-- CONNECTION STATUS BANNER: shown during connection/success/failure -->
+  <div id="connection-status" class="banner hidden">
     <span id="status-message">Connecting to Instructor Station...</span>
+  </div>
+
+  <!-- TROUBLESHOOTING PANEL: shown on connection failure -->
+  <div id="troubleshoot-panel" class="hidden">
+    <div class="troubleshoot-dialog">
+      <h2>Connection Failed</h2>
+      <p class="troubleshoot-intro">Unable to reach the Instructor Operator Station. Follow these steps to restore connectivity:</p>
+      <ol class="troubleshoot-steps">
+        <li>Power down the AATD</li>
+        <li>Unplug the main AATD power cable from the wall</li>
+        <li>Wait ~30 seconds</li>
+        <li>Plug the main AATD power cable back into the wall</li>
+        <li><strong>IMPORTANT:</strong> Wait 2 minutes for the wireless router to fully boot (look for <em>simCONNECT</em> wireless network to appear on your smartphone's available network list)</li>
+        <li>Only after completing step 5, proceed with powering up the AATD like normal. After the startup countdown finishes, click the button below to attempt reconnection.</li>
+      </ol>
+      <p class="troubleshoot-support">If the failure persists, contact one-G support for further investigation.</p>
+      <div class="troubleshoot-actions">
+        <button id="btn-retry" class="btn btn-primary">Retry Connection</button>
+        <button id="btn-troubleshoot-close" class="btn btn-secondary">Dismiss</button>
+      </div>
+    </div>
   </div>
 
   <!-- CONFIG OVERLAY: shown on first boot or via Ctrl+Shift+O -->
@@ -30,7 +51,7 @@
       <div class="config-header">
         <img src="icons/icon-128.png" alt="one-G" class="config-logo">
         <h1>Instructor Station Kiosk</h1>
-        <p class="config-subtitle">one-G Simulation</p>
+        <p class="config-subtitle">one-G simulation</p>
       </div>
 
       <div class="config-body">
@@ -53,7 +74,7 @@
       </div>
 
       <div class="config-footer">
-        <span id="version-display">v1.0</span>
+        <span id="version-display">v1.01</span>
       </div>
     </div>
   </div>
