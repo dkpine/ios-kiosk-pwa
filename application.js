@@ -472,9 +472,14 @@
         e.preventDefault();
         toggleConfigOverlay();
       }
-      if (e.key === 'Escape' && !configOverlay.classList.contains('hidden')) {
-        e.preventDefault();
-        hideConfigOverlay();
+      if (e.key === 'Escape') {
+        if (!troubleshootPanel.classList.contains('hidden')) {
+          e.preventDefault();
+          hideTroubleshootPanel();
+        } else if (!configOverlay.classList.contains('hidden')) {
+          e.preventDefault();
+          hideConfigOverlay();
+        }
       }
     });
   }
@@ -497,6 +502,13 @@
     configOverlay.addEventListener('click', function (e) {
       if (e.target === configOverlay) {
         hideConfigOverlay();
+      }
+    });
+
+    // Click outside troubleshoot dialog to close
+    troubleshootPanel.addEventListener('click', function (e) {
+      if (e.target === troubleshootPanel) {
+        hideTroubleshootPanel();
       }
     });
 
