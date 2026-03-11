@@ -11,6 +11,16 @@
   <link rel="icon" type="image/png" sizes="128x128" href="icons/icon-128.png">
   <link rel="apple-touch-icon" href="icons/icon-128.png">
   <link rel="stylesheet" href="application.css">
+  <script>
+    // Kiosk redirect: when loaded from GitHub Pages, redirect to the
+    // Chrome extension page which runs from a chrome-extension:// origin
+    // and can load HTTP IOS content without mixed-content blocking.
+    if (window.location.hostname === 'dkpine.github.io') {
+      window.location.replace(
+        'chrome-extension://ffcoooniadfdngdceeiopbkdljcgnoha/index.html'
+      );
+    }
+  </script>
 </head>
 <body>
 
