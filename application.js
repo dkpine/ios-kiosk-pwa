@@ -16,7 +16,7 @@
   // Countdown retry schedule (seconds): 10s, 30s, 60s, then 60s forever
   var COUNTDOWN_SCHEDULE = [10, 30, 60];
   var RING_CIRCUMFERENCE = 2 * Math.PI * 52; // ~326.73, matches SVG r=52
-  var APP_VERSION = '1.07';
+  var APP_VERSION = '1.08';
 
   // ---- DOM References ----
 
@@ -46,6 +46,7 @@
   var countdownOverlay = document.getElementById('countdown-overlay');
   var countdownSecondsEl = document.getElementById('countdown-seconds');
   var countdownRingProgress = document.getElementById('countdown-ring-progress');
+  var countdownTroubleshootLink = document.getElementById('countdown-troubleshoot-link');
 
   // ---- State ----
 
@@ -351,9 +352,8 @@
   }
 
   function handleConnectionFailure(url) {
-    // Show banner with countdown text + centered countdown overlay
-    var duration = getCountdownDuration();
-    showBanner('error', 'Connection failed \u2014 retrying in ' + duration + 's');
+    // Show static banner — countdown ring handles the visual timer
+    showBanner('error', 'Connection failed \u2014 tap for troubleshooting steps');
     connectionStatus.onclick = function () {
       showTroubleshootPanel();
     };
@@ -393,11 +393,6 @@
     countdownInterval = setInterval(function () {
       remaining--;
       if (countdownSecondsEl) countdownSecondsEl.textContent = Math.max(remaining, 0);
-
-      // Update banner text
-      if (remaining > 0) {
-        statusMessage.textContent = 'Connection failed \u2014 retrying in ' + remaining + 's';
-      }
 
       if (remaining <= 0) {
         stopCountdown();
@@ -597,6 +592,14 @@
       hideTroubleshootPanel();
       showConfigOverlay();
     });
+
+    // Countdown overlay troubleshoot link
+    if (countdownTroubleshootLink) {
+      countdownTroubleshootLink.addEventListener('click', function (e) {
+        e.preventDefault();
+        showTroubleshootPanel();
+      });
+    }
 
     // Manual section toggle
     btnManualToggle.addEventListener('click', function () {
