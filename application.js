@@ -354,11 +354,12 @@
       .then(function () {
         clearTimeout(probeTimeout);
 
-        // Guard: if this probe was aborted by a newer navigateToUrl call,
-        // bail out before touching any shared state
-        if (signal.aborted) return;
+        // Guard: if a newer navigateToUrl call has replaced our controller,
+        // bail out — our results are stale. We check identity (not
+        // signal.aborted) because our own probeTimeout also aborts the
+        // signal, and we must NOT bail on self-inflicted timeouts.
+        if (activeProbeController !== controller) return;
 
-        // Safe to clear — no newer call has replaced the controller
         activeProbeController = null;
 
         // The first onload after setting iframe.src is our initial load.
@@ -399,8 +400,11 @@
       .catch(function () {
         clearTimeout(probeTimeout);
 
-        // Guard: if aborted by a newer navigateToUrl call, don't act
-        if (signal.aborted) return;
+        // Guard: if a newer navigateToUrl replaced our controller, bail out.
+        // Note: our own probeTimeout abort also lands here, but in that case
+        // activeProbeController still === controller, so we correctly proceed
+        // to handleConnectionFailure.
+        if (activeProbeController !== controller) return;
 
         activeProbeController = null;
         handleConnectionFailure(url);
