@@ -319,10 +319,23 @@
         // Server responded — load in iframe
         clearTimeout(probeTimeout);
 
-        // Every subsequent iframe navigation (link clicks, form submits)
-        // must re-probe the server before declaring success. The server
-        // may have died between the initial load and the next navigation.
+        // The first onload after setting iframe.src is our initial load.
+        // We already proved the server is reachable via the fetch probe,
+        // so treat this as a success immediately.
+        //
+        // Subsequent iframe navigations (link clicks, form submits inside
+        // the loaded page) need a re-probe because the server may have
+        // gone down between navigations.
+        var isFirstLoad = true;
+
         iframe.onload = function () {
+          if (isFirstLoad) {
+            isFirstLoad = false;
+            handleConnectionSuccess();
+            return;
+          }
+
+          // Re-probe on subsequent navigations within the iframe
           var navController = new AbortController();
           var navTimeout = setTimeout(function () {
             navController.abort();
@@ -349,6 +362,7 @@
   }
 
   function handleConnectionSuccess() {
+    stopCountdown();
     retryCount = 0;
     if (bgLogo) bgLogo.classList.add('hidden');
     hidePageThemeToggle();
