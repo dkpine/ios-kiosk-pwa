@@ -104,7 +104,7 @@
       url = deviceDb['N' + raw];
     }
     if (!url) {
-      lookupMsg.textContent = 'Tail number "' + raw + '" not found in database.';
+      lookupMsg.textContent = 'Tail number not found. Please verify and try again.';
       lookupMsg.className = 'validation-msg error';
       return;
     }
