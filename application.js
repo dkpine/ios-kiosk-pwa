@@ -1,6 +1,6 @@
 /* ============================================================
    Instructor Station Kiosk - GitHub Pages App
-   Core application logic — v3.4.0
+   Core application logic — v3.5.0
 
    This runs from the GitHub Pages HTTPS origin. HTTP fetch
    probes to private-IP IOS servers are proxied through the
@@ -11,6 +11,12 @@
    Once the IOS is found, the page navigates directly to
    the HTTP URL (top-level navigation is not subject to
    mixed-content blocking).
+
+   Without the extension, two safety nets detect IOS failures:
+     1. Dead man's switch — if the page hasn't unloaded after
+        NAV_TIMEOUT_MS, call window.stop() and enter retry flow.
+     2. localStorage breadcrumb — on next page load, detect a
+        stale navigation stamp and skip straight to retry flow.
 
    devices.json is fetched from the same GitHub Pages origin.
    ============================================================ */
@@ -29,6 +35,8 @@
   var APP_VERSION = '3.5.0';
   var EXTENSION_ID = 'ffcoooniadfdngdceeiopbkdljcgnoha';
   var DEVICES_JSON_URL = './devices.json';
+  var RECOVERY_KEY = 'kiosk_recovery';
+  var NAV_TIMEOUT_MS = 8000;
 
   // ---- Extension Communication ----
   //
@@ -256,6 +264,7 @@
   var wakeLock = null;
   var countdownRetryUrl = null;
   var loadingTimer = null;
+  var navTimeoutTimer = null;
 
   // ============================================================
   // Storage Helpers — uses localStorage (web page context)
@@ -297,6 +306,57 @@
   }
 
   // ============================================================
+  // Navigation Recovery
+  //
+  // Two strategies for detecting IOS failures without extension:
+  //
+  //   1. Dead man's switch — after setting window.location.href,
+  //      a timeout fires if the page hasn't unloaded. This means
+  //      the server is timing out. Call window.stop() to cancel
+  //      the pending navigation and enter the failure/retry flow.
+  //
+  //   2. localStorage breadcrumb — before navigating, stamp a
+  //      breadcrumb. If the server refuses connection instantly,
+  //      Chrome replaces us with an error page before the timeout
+  //      fires. When the kiosk session eventually restarts and
+  //      reloads this URL, detect the stale breadcrumb and go
+  //      straight into the failure/retry flow.
+  // ============================================================
+
+  function setRecoveryBreadcrumb(url) {
+    try {
+      localStorage.setItem(RECOVERY_KEY, JSON.stringify({
+        url: url,
+        timestamp: Date.now()
+      }));
+    } catch (e) {}
+  }
+
+  function clearRecoveryBreadcrumb() {
+    try { localStorage.removeItem(RECOVERY_KEY); } catch (e) {}
+  }
+
+  /**
+   * Check if we're recovering from a failed navigation.
+   * Returns the IOS URL if a recent breadcrumb is found, null otherwise.
+   */
+  function checkRecoveryState() {
+    try {
+      var raw = localStorage.getItem(RECOVERY_KEY);
+      if (!raw) return null;
+      localStorage.removeItem(RECOVERY_KEY);
+      var data = JSON.parse(raw);
+      var age = Date.now() - data.timestamp;
+      // If we navigated away less than 2 minutes ago and ended up
+      // back on this page, the IOS server was unreachable.
+      if (age < 2 * 60 * 1000 && data.url) {
+        return data.url;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  // ============================================================
   // Initialization
   // ============================================================
 
@@ -312,6 +372,30 @@
     setupButtons();
     loadDeviceDb();
 
+    // ---- Recovery check ----
+    // If we recently tried to navigate to an IOS URL and ended up
+    // back on this page, the server may have been unreachable. Rather
+    // than declaring failure (the server may have recovered during a
+    // reboot), just re-attempt the connection — the dead man's switch
+    // will catch it if the server is still down.
+    var recoveryUrl = checkRecoveryState();
+    if (recoveryUrl) {
+      console.log('[Kiosk] Recovery: re-attempting connection to ' + recoveryUrl);
+      currentUrl = recoveryUrl;
+      localStorage.setItem(STORAGE_KEY, recoveryUrl);
+      updateCurrentUrlDisplay(recoveryUrl);
+      navigateToUrl(recoveryUrl);
+
+      // Still poll for extension in background
+      checkExtension(function (available) {
+        if (available && extStatus) {
+          extStatus.textContent = 'Ext v' + extensionVersion + ' OK';
+          extStatus.className = 'ext-status ext-ok';
+        }
+      });
+      return;
+    }
+
     function updateExtStatus(available, response) {
       if (extStatus) {
         if (available) {
@@ -326,6 +410,7 @@
 
     function bootWithExtension() {
       updateExtStatus(true, { version: extensionVersion });
+      clearRecoveryBreadcrumb(); // Extension handles its own watchdog
 
       var savedUrl = localStorage.getItem(STORAGE_KEY);
       if (savedUrl) {
@@ -601,14 +686,36 @@
     showPageThemeToggle();
 
     if (!extensionAvailable) {
-      // Without the extension, we can't probe HTTP from this HTTPS page
-      // (mixed content blocks it). But top-level navigation HTTPS→HTTP
-      // is allowed, so just navigate directly. The watchdog script
-      // (injected by the extension into the IOS page) will handle
-      // crash recovery. If the extension truly isn't running, we still
-      // navigate — it's better than being stuck on a blank config page.
+      // Without the extension we can't probe HTTP from this HTTPS page
+      // (mixed content blocks it). Navigate directly with two safety nets:
+      //
+      //   1. Dead man's switch — if we're still on this page after
+      //      NAV_TIMEOUT_MS, the server is timing out. Call window.stop()
+      //      to cancel the pending navigation and enter failure flow.
+      //
+      //   2. Recovery breadcrumb — if the server instantly refuses the
+      //      connection, Chrome replaces us with an error page before
+      //      the timeout fires. The breadcrumb persists in localStorage
+      //      so the next time this kiosk page loads, we detect it and
+      //      go straight to the failure/retry flow.
       console.log('[Kiosk] No extension — navigating directly to ' + url);
-      handleConnectionSuccess(url);
+      setRecoveryBreadcrumb(url);
+
+      if (navTimeoutTimer) { clearTimeout(navTimeoutTimer); navTimeoutTimer = null; }
+      if (successTimer) clearTimeout(successTimer);
+      successTimer = setTimeout(function () {
+        // Top-level HTTPS→HTTP navigation is allowed by browsers.
+        window.location.href = url;
+
+        // Dead man's switch: if we're still here after the timeout,
+        // the server isn't responding. Abort and show failure UI.
+        navTimeoutTimer = setTimeout(function () {
+          window.stop();
+          clearRecoveryBreadcrumb();
+          console.log('[Kiosk] Navigation timed out for ' + url);
+          handleConnectionFailure(url, { message: 'Connection timed out' });
+        }, NAV_TIMEOUT_MS);
+      }, 800);
       return;
     }
 
@@ -739,6 +846,10 @@
     if (successTimer) {
       clearTimeout(successTimer);
       successTimer = null;
+    }
+    if (navTimeoutTimer) {
+      clearTimeout(navTimeoutTimer);
+      navTimeoutTimer = null;
     }
     retryCount = 0;
   }
