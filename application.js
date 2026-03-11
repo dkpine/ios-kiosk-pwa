@@ -1,6 +1,6 @@
 /* ============================================================
    Instructor Station Kiosk - GitHub Pages App
-   Core application logic — v3.3.0
+   Core application logic — v3.4.0
 
    This runs from the GitHub Pages HTTPS origin. HTTP fetch
    probes to private-IP IOS servers are proxied through the
@@ -26,33 +26,41 @@
   var SUCCESS_BANNER_MS = 2000;
   var COUNTDOWN_SCHEDULE = [10, 30, 60];
   var RING_CIRCUMFERENCE = 2 * Math.PI * 52;
-  var APP_VERSION = '3.3.0';
+  var APP_VERSION = '3.4.0';
+  var EXTENSION_ID = 'ffcoooniadfdngdceeiopbkdljcgnoha';
   var DEVICES_JSON_URL = './devices.json';
 
-  // ---- Extension Communication (via content script bridge) ----
+  // ---- Extension Communication ----
   //
-  // The extension injects content.js into this page. We communicate
-  // via window.postMessage. Each request gets a unique requestId so
-  // we can match replies to callbacks.
+  // Three communication strategies (tried in order):
+  //   1. Content script bridge — extension injects content.js, we use
+  //      window.postMessage to relay to the service worker
+  //   2. externally_connectable — page calls chrome.runtime.sendMessage()
+  //      directly to the extension (official ChromeOS kiosk pattern)
+  //   3. Late arrival — if the extension loads after init, re-trigger
+  //
+  // Strategy 2 requires the extension to declare externally_connectable
+  // in its manifest AND for chrome.runtime to be exposed to this page.
 
   var extensionAvailable = false;
+  var useDirectChannel = false; // true if using externally_connectable
   var pendingRequests = {};
   var requestCounter = 0;
 
   var extensionVersion = '?';
   var onExtensionReady = null; // late-arrival callback
 
-  // Listen for replies from the content script
+  // ---- Strategy 1: Content script bridge via postMessage ----
+
   window.addEventListener('message', function (event) {
     if (event.source !== window) return;
     var data = event.data;
     if (!data || !data.iosKioskReply) return;
 
-    // Handle unsolicited "extensionReady" announcement from content script
     if (data.type === 'extensionReady') {
       extensionAvailable = true;
+      useDirectChannel = false;
       extensionVersion = data.version || '?';
-      // If the app already finished init without the extension, re-trigger
       if (onExtensionReady) {
         onExtensionReady();
         onExtensionReady = null;
@@ -60,7 +68,6 @@
       return;
     }
 
-    // Match to pending request
     var id = data.requestId;
     if (id && pendingRequests[id]) {
       var cb = pendingRequests[id];
@@ -69,14 +76,42 @@
     }
   });
 
+  // ---- Strategy 2: Direct chrome.runtime.sendMessage ----
+
+  function tryDirectMessage(message, callback) {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage(EXTENSION_ID, message, function (response) {
+          if (chrome.runtime.lastError) {
+            if (callback) callback({ ok: false, error: chrome.runtime.lastError.message });
+          } else {
+            if (callback) callback(response || { ok: false, error: 'No response' });
+          }
+        });
+        return true;
+      }
+    } catch (e) {
+      // chrome.runtime not available
+    }
+    return false;
+  }
+
+  // ---- Unified send function ----
+
   function sendToExtension(message, callback) {
+    if (useDirectChannel) {
+      // Use externally_connectable direct path
+      tryDirectMessage(message, callback);
+      return;
+    }
+
+    // Use content script bridge (postMessage)
     var id = ++requestCounter;
     message.iosKiosk = true;
     message.requestId = id;
 
     if (callback) {
       pendingRequests[id] = callback;
-      // Timeout: if no reply in 2 seconds, callback with failure
       setTimeout(function () {
         if (pendingRequests[id]) {
           delete pendingRequests[id];
@@ -88,9 +123,8 @@
     window.postMessage(message, '*');
   }
 
-  // Poll for extension with retries — in kiosk mode the page may load
-  // before the extension has initialized and injected its content script.
-  // We retry every 1.5s for up to ~20 seconds.
+  // ---- Extension detection with polling and dual-strategy ----
+
   function checkExtension(callback) {
     if (extensionAvailable) {
       if (callback) callback(true, { ok: true, version: extensionVersion });
@@ -98,29 +132,67 @@
     }
 
     var attempts = 0;
-    var maxAttempts = 12; // ~20 seconds total (12 × ~1.5s per attempt)
+    var maxAttempts = 14; // ~25 seconds total
 
     function attempt() {
-      // Check if extensionReady arrived while we were waiting
       if (extensionAvailable) {
         if (callback) callback(true, { ok: true, version: extensionVersion });
         return;
       }
 
       attempts++;
-      sendToExtension({ type: 'ping' }, function (response) {
+
+      // Try content script bridge first
+      var bridgeId = ++requestCounter;
+      var bridgeMsg = { iosKiosk: true, requestId: bridgeId, type: 'ping' };
+      var resolved = false;
+
+      pendingRequests[bridgeId] = function (response) {
+        if (resolved) return;
+        resolved = true;
         if (response && response.ok) {
           extensionAvailable = true;
+          useDirectChannel = false;
           if (response.version) extensionVersion = response.version;
           if (callback) callback(true, response);
-        } else if (attempts < maxAttempts) {
-          // Retry after a delay
-          setTimeout(attempt, 1500);
-        } else {
-          // Give up, but still listen for late extensionReady
-          if (callback) callback(false, { ok: false, error: 'Extension not found after ' + attempts + ' attempts' });
+        }
+      };
+
+      // Timeout for bridge attempt
+      setTimeout(function () {
+        if (pendingRequests[bridgeId]) {
+          delete pendingRequests[bridgeId];
+        }
+      }, 1200);
+
+      window.postMessage(bridgeMsg, '*');
+
+      // Also try direct channel (externally_connectable)
+      tryDirectMessage({ type: 'ping' }, function (response) {
+        if (resolved) return;
+        resolved = true;
+        delete pendingRequests[bridgeId]; // cancel bridge wait
+        if (response && response.ok) {
+          extensionAvailable = true;
+          useDirectChannel = true;
+          extensionVersion = response.version || '?';
+          console.log('[Kiosk] Extension found via direct channel (externally_connectable)');
+          if (callback) callback(true, response);
         }
       });
+
+      // If neither worked after 1.5s, retry
+      setTimeout(function () {
+        if (!resolved) {
+          resolved = true;
+          delete pendingRequests[bridgeId];
+          if (attempts < maxAttempts) {
+            attempt();
+          } else {
+            if (callback) callback(false, { ok: false, error: 'Extension not found after ' + attempts + ' attempts' });
+          }
+        }
+      }, 1800);
     }
 
     attempt();
@@ -810,7 +882,8 @@
     var lines = [];
     lines.push('<span class="diag-info">Page origin: ' + location.origin + '</span>');
     lines.push('<span class="diag-info">Protocol: ' + location.protocol + '</span>');
-    lines.push('<span class="diag-info">Extension: ' + (extensionAvailable ? 'yes (v' + extensionVersion + ')' : 'NO \u2014 HTTP probing disabled') + '</span>');
+    lines.push('<span class="diag-info">Extension: ' + (extensionAvailable ? 'yes (v' + extensionVersion + ') via ' + (useDirectChannel ? 'direct' : 'bridge') : 'NO \u2014 HTTP probing disabled') + '</span>');
+    lines.push('<span class="diag-info">chrome.runtime available: ' + (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage ? 'yes' : 'no') + '</span>');
     lines.push('<span class="diag-info">App version: v' + APP_VERSION + '</span>');
     lines.push('<span class="diag-info">Configured URL: ' + (currentUrl || 'none') + '</span>');
     lines.push('');
