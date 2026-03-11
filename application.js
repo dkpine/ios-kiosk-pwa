@@ -409,6 +409,12 @@
 
   function hideTroubleshootPanel() {
     troubleshootPanel.classList.add('hidden');
+
+    // Re-attempt connection whenever troubleshooting panel is dismissed
+    if (currentUrl) {
+      retryCount = 0;
+      navigateToUrl(currentUrl);
+    }
   }
 
   // ============================================================
@@ -519,18 +525,10 @@
     // Troubleshooting panel buttons
     btnRetry.addEventListener('click', function () {
       hideTroubleshootPanel();
-      if (currentUrl) {
-        retryCount = 0;
-        navigateToUrl(currentUrl);
-      }
     });
 
     btnTroubleshootClose.addEventListener('click', function () {
       hideTroubleshootPanel();
-      if (currentUrl) {
-        retryCount = 0;
-        navigateToUrl(currentUrl);
-      }
     });
 
     // Troubleshoot panel → open config link
