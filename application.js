@@ -283,7 +283,16 @@
       if (url.protocol !== 'http:' && url.protocol !== 'https:') {
         return { valid: false, error: 'URL must use http:// or https://' };
       }
-      return { valid: true, url: url.href };
+      // Allow https://flyone-g.com (any path)
+      if (url.hostname === 'flyone-g.com' || url.hostname === 'www.flyone-g.com') {
+        return { valid: true, url: url.href };
+      }
+      // Allow internal IOS addresses: http://<private-IP>:3100
+      var isPrivateIp = /^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})$/.test(url.hostname);
+      if (isPrivateIp && url.port === '3100') {
+        return { valid: true, url: url.href };
+      }
+      return { valid: false, error: 'Only IOS addresses (internal IP:3100) and flyone-g.com are allowed' };
     } catch (e) {
       return { valid: false, error: 'Invalid URL format' };
     }
