@@ -39,6 +39,8 @@
   var tailInput = document.getElementById('tail-input');
   var btnLookup = document.getElementById('btn-lookup');
   var lookupMsg = document.getElementById('lookup-msg');
+  var btnManualToggle = document.getElementById('btn-manual-toggle');
+  var manualSection = document.getElementById('manual-section');
   var versionDisplay = document.getElementById('version-display');
 
   // ---- State ----
@@ -410,6 +412,8 @@
   function showConfigOverlay() {
     addrInput.value = currentUrl || '';
     tailInput.value = '';
+    manualSection.classList.add('hidden');
+    btnManualToggle.classList.remove('expanded');
     configOverlay.classList.remove('hidden');
     clearValidation();
     clearLookupMsg();
@@ -493,6 +497,19 @@
       e.preventDefault();
       hideTroubleshootPanel();
       showConfigOverlay();
+    });
+
+    // Manual section toggle
+    btnManualToggle.addEventListener('click', function () {
+      var isHidden = manualSection.classList.contains('hidden');
+      if (isHidden) {
+        manualSection.classList.remove('hidden');
+        btnManualToggle.classList.add('expanded');
+        addrInput.focus();
+      } else {
+        manualSection.classList.add('hidden');
+        btnManualToggle.classList.remove('expanded');
+      }
     });
 
     // Tail number lookup

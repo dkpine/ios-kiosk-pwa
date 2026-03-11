@@ -65,18 +65,25 @@
         </div>
         <div id="lookup-msg" class="validation-msg"></div>
 
-        <div class="config-divider"><span>or enter manually</span></div>
+        <button id="btn-manual-toggle" class="manual-toggle" type="button">
+          <span>or enter manually</span>
+          <svg class="manual-toggle-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3,5 8,11 13,5"/>
+          </svg>
+        </button>
 
-        <label for="ios-addr-input">IOS Address</label>
-        <input type="url" id="ios-addr-input"
-               placeholder="e.g. http://10.38.1.1:3100/"
-               autocomplete="off" autocapitalize="off" spellcheck="false">
-        <div id="validation-msg" class="validation-msg"></div>
+        <div id="manual-section" class="manual-section hidden">
+          <label for="ios-addr-input">IOS Address</label>
+          <input type="url" id="ios-addr-input"
+                 placeholder="e.g. http://10.38.1.1:3100/"
+                 autocomplete="off" autocapitalize="off" spellcheck="false">
+          <div id="validation-msg" class="validation-msg"></div>
 
-        <div class="config-actions">
-          <button id="btn-save" class="btn btn-primary">Save &amp; Connect</button>
-          <button id="btn-clear" class="btn btn-danger">Clear</button>
-          <button id="btn-close" class="btn btn-secondary">Close</button>
+          <div class="config-actions">
+            <button id="btn-save" class="btn btn-primary">Save &amp; Connect</button>
+            <button id="btn-clear" class="btn btn-danger">Clear</button>
+            <button id="btn-close" class="btn btn-secondary">Close</button>
+          </div>
         </div>
 
         <div class="config-info">

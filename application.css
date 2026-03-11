@@ -321,23 +321,49 @@ html, body {
   white-space: nowrap;
 }
 
-.config-divider {
+.manual-toggle {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin: 20px 0;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin: 20px 0 0;
+  padding: 10px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
   color: var(--text-faint);
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 1px;
+  transition: color 0.2s;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.config-divider::before,
-.config-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border-subtle);
+.manual-toggle:hover {
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .manual-toggle:hover {
+  color: var(--text-primary);
+}
+
+.manual-toggle-arrow {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.25s ease;
+}
+
+.manual-toggle.expanded .manual-toggle-arrow {
+  transform: rotate(180deg);
+}
+
+.manual-section {
+  margin-top: 16px;
+}
+
+.manual-section.hidden {
+  display: none;
 }
 
 /* --- Config Body / Form --- */
