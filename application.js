@@ -292,7 +292,7 @@
       if (isPrivateIp && url.port === '3100') {
         return { valid: true, url: url.href };
       }
-      return { valid: false, error: 'Only IOS addresses (internal IP:3100) and flyone-g.com are allowed' };
+      return { valid: false, error: 'Only valid one-G IOS addresses and flyone-g.com are allowed' };
     } catch (e) {
       return { valid: false, error: 'Invalid URL format' };
     }
