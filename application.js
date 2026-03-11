@@ -109,10 +109,27 @@
       return;
     }
 
-    // Try exact match first, then with 'N' prefix for numeric-leading entries
+    // Try exact match first, then progressively fuzzier matches:
+    // 1. Exact:           "N021GF" → "N021GF"
+    // 2. Prepend N:       "021GF"  → "N021GF"
+    // 3. Zero-pad after N: "N21GF" → "N021GF" (try 1-2 leading zeros)
+    // 4. Prepend N + pad: "21GF"   → "N021GF"
     var url = deviceDb[raw];
     if (!url && /^[0-9]/.test(raw)) {
       url = deviceDb['N' + raw];
+    }
+    if (!url) {
+      // Extract the numeric+suffix portion after optional 'N' prefix,
+      // then try zero-padded variants (e.g. N21GF → N021GF, N1GF → N001GF)
+      var match = raw.match(/^(N?)(\d+)(.*)$/i);
+      if (match) {
+        var numPart = match[2];
+        var suffix = match[3];
+        for (var padLen = numPart.length + 1; !url && padLen <= numPart.length + 2; padLen++) {
+          var padded = ('000' + numPart).slice(-padLen);
+          url = deviceDb['N' + padded + suffix];
+        }
+      }
     }
     if (!url) {
       lookupMsg.textContent = 'Tail number not found. Please verify and try again.';
