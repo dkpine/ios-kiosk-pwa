@@ -1,6 +1,6 @@
 /* ============================================================
    Instructor Station Kiosk - PWA Config Shell
-   Core application logic — v1.01
+   Core application logic — v1.10
    ============================================================ */
 
 (function () {
@@ -10,13 +10,12 @@
 
   var STORAGE_KEY = 'ios_addr';
   var THEME_KEY = 'ios_theme';
-  var DEFAULT_URL = 'https://flyone-g.com';
   var PROBE_TIMEOUT_MS = 8000;
   var SUCCESS_BANNER_MS = 3000;
   // Countdown retry schedule (seconds): 10s, 30s, 60s, then 60s forever
   var COUNTDOWN_SCHEDULE = [10, 30, 60];
   var RING_CIRCUMFERENCE = 2 * Math.PI * 52; // ~326.73, matches SVG r=52
-  var APP_VERSION = '1.09';
+  var APP_VERSION = '1.10';
 
   // ---- DOM References ----
 
@@ -61,6 +60,8 @@
   var successTimer = null;
   var wakeLock = null;
   var countdownRetryUrl = null;
+  var activeProbeController = null; // AbortController for in-flight fetch probe
+  var loadingTimer = null; // setTimeout ID for showLoadingAndConnect
 
   // ============================================================
   // Initialization
@@ -73,7 +74,7 @@
     initTheme();
     loadDeviceDb();
     registerServiceWorker();
-    requestWakeLock();
+    setupWakeLock();
     setupHotkey();
     setupButtons();
     setupScreenshotListener();
@@ -132,12 +133,19 @@
 
   // Shared loading transition: replaces config UI with spinner, then navigates
   function showLoadingAndConnect(url) {
+    // Cancel any previously queued loading transition (rapid lookups)
+    if (loadingTimer) {
+      clearTimeout(loadingTimer);
+      loadingTimer = null;
+    }
+
     // Switch dialog to loading state (CSS hides header/body/footer, shrinks dialog)
     if (configDialog) configDialog.classList.add('loading-state');
     if (configLoading) configLoading.classList.remove('hidden');
 
     // After the CSS transition + a brief pause, navigate and dismiss
-    setTimeout(function () {
+    loadingTimer = setTimeout(function () {
+      loadingTimer = null;
       navigateToUrl(url);
       configOverlay.classList.add('hidden');
       resetLoadingState();
@@ -145,6 +153,10 @@
   }
 
   function resetLoadingState() {
+    if (loadingTimer) {
+      clearTimeout(loadingTimer);
+      loadingTimer = null;
+    }
     if (configDialog) configDialog.classList.remove('loading-state');
     if (configLoading) configLoading.classList.add('hidden');
     clearValidation();
@@ -168,21 +180,26 @@
   // ============================================================
 
   function requestWakeLock() {
-    if (!('wakeLock' in navigator)) {
-      console.warn('[Kiosk] WakeLock API not available');
-      return;
-    }
+    if (!('wakeLock' in navigator)) return;
 
     navigator.wakeLock.request('screen').then(function (lock) {
       wakeLock = lock;
-      wakeLock.addEventListener('release', function () {
+      lock.addEventListener('release', function () {
         wakeLock = null;
       });
     }).catch(function (err) {
       console.warn('[Kiosk] WakeLock request failed:', err);
     });
+  }
 
-    // Re-acquire when page becomes visible again
+  function setupWakeLock() {
+    if (!('wakeLock' in navigator)) {
+      console.warn('[Kiosk] WakeLock API not available');
+      return;
+    }
+    requestWakeLock();
+
+    // Re-acquire when page becomes visible again (registered once)
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'visible' && !wakeLock) {
         requestWakeLock();
@@ -267,6 +284,8 @@
   function clearSavedUrl() {
     localStorage.removeItem(STORAGE_KEY);
     currentUrl = null;
+    abortActiveProbe();
+    iframe.onload = null;
     iframe.src = 'about:blank';
     iframe.classList.remove('active');
     cancelRetry();
@@ -296,12 +315,23 @@
   // Iframe Navigation & Connection Management
   // ============================================================
 
+  // Abort any in-flight fetch probe so stale callbacks never fire
+  function abortActiveProbe() {
+    if (activeProbeController) {
+      activeProbeController.abort();
+      activeProbeController = null;
+    }
+  }
+
   function navigateToUrl(url) {
     cancelRetry();
-    hideTroubleshootPanel();
+    dismissTroubleshootPanel();
     showBanner('connecting', 'Connecting to Instructor Station...');
     if (bgLogo) bgLogo.classList.remove('hidden');
     showPageThemeToggle();
+
+    // Abort any previous probe before starting a new one
+    abortActiveProbe();
 
     // Detach any previous onload handler before clearing the iframe,
     // otherwise setting src='about:blank' triggers the OLD handler
@@ -314,14 +344,22 @@
     // it alone. A no-cors fetch will throw a TypeError on network failure
     // but succeed (with an opaque response) if the server is reachable.
     var controller = new AbortController();
+    activeProbeController = controller;
+    var signal = controller.signal;
     var probeTimeout = setTimeout(function () {
-      controller.abort();
+      controller.abort(); // use local ref, not shared activeProbeController
     }, PROBE_TIMEOUT_MS);
 
-    fetch(url, { mode: 'no-cors', signal: controller.signal })
+    fetch(url, { mode: 'no-cors', signal: signal })
       .then(function () {
-        // Server responded — load in iframe
         clearTimeout(probeTimeout);
+
+        // Guard: if this probe was aborted by a newer navigateToUrl call,
+        // bail out before touching any shared state
+        if (signal.aborted) return;
+
+        // Safe to clear — no newer call has replaced the controller
+        activeProbeController = null;
 
         // The first onload after setting iframe.src is our initial load.
         // We already proved the server is reachable via the fetch probe,
@@ -359,8 +397,12 @@
         iframe.src = url;
       })
       .catch(function () {
-        // Network error or timeout — server unreachable
         clearTimeout(probeTimeout);
+
+        // Guard: if aborted by a newer navigateToUrl call, don't act
+        if (signal.aborted) return;
+
+        activeProbeController = null;
         handleConnectionFailure(url);
       });
   }
@@ -529,8 +571,15 @@
     troubleshootPanel.classList.remove('hidden');
   }
 
+  // Pure UI dismiss — hides panel without triggering navigation.
+  // Used by navigateToUrl and showConfigOverlay to avoid re-entrancy.
+  function dismissTroubleshootPanel() {
+    troubleshootPanel.classList.add('hidden');
+  }
+
+  // User-triggered dismiss — hides panel and reconnects if it was visible.
+  // Used by Retry, Dismiss buttons, and outside-click handlers.
   function hideTroubleshootPanel() {
-    // Only trigger reconnection if the panel was actually visible
     var wasVisible = !troubleshootPanel.classList.contains('hidden');
     troubleshootPanel.classList.add('hidden');
 
@@ -547,6 +596,8 @@
   function showConfigOverlay() {
     resetLoadingState();
     cancelRetry();
+    abortActiveProbe();
+    dismissTroubleshootPanel();
     hidePageThemeToggle();
     // Clear any loaded page — config is a fresh-start context
     iframe.onload = null;
@@ -672,9 +723,11 @@
     });
 
     // Troubleshoot panel → open config link
+    // Use dismissTroubleshootPanel (not hideTroubleshootPanel) to avoid
+    // triggering a wasted navigateToUrl that showConfigOverlay cancels.
     btnOpenConfig.addEventListener('click', function (e) {
       e.preventDefault();
-      hideTroubleshootPanel();
+      dismissTroubleshootPanel();
       showConfigOverlay();
     });
 

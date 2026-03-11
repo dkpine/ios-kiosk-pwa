@@ -187,6 +187,8 @@ html, body {
   position: relative;
   width: 120px;
   height: 120px;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 .countdown-ring {
@@ -235,11 +237,6 @@ html, body {
 
 :root[data-theme="light"] .countdown-retry-label {
   color: #1a2a3a;
-}
-
-.countdown-ring-wrap {
-  cursor: pointer;
-  pointer-events: auto;
 }
 
 .countdown-ring-wrap:hover .countdown-number {
@@ -367,6 +364,7 @@ html, body {
   max-width: 560px;
   width: 90%;
   box-shadow: 0 20px 60px var(--shadow-dialog);
+  transition: max-width 0.35s ease, padding 0.35s ease;
 }
 
 /* --- Config Header --- */
@@ -709,11 +707,7 @@ kbd {
   100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; }
 }
 
-/* Smooth transitions for the config dialog content swap */
-
-.config-dialog {
-  transition: max-width 0.35s ease, padding 0.35s ease;
-}
+/* Loading state: shrinks config dialog to spinner-only view */
 
 .config-dialog.loading-state {
   max-width: 280px;
