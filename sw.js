@@ -4,7 +4,7 @@
    Does NOT cache iframe content (live instructor station data).
    ============================================================ */
 
-var CACHE_NAME = 'ios-kiosk-shell-v1.13';
+var CACHE_NAME = 'ios-kiosk-shell-v1.14';
 
 var SHELL_ASSETS = [
   './',
