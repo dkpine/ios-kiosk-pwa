@@ -303,7 +303,9 @@
     if (bgLogo) bgLogo.classList.remove('hidden');
     showPageThemeToggle();
 
-    // Clear any previously loaded page so it doesn't show through
+    // Detach any previous onload handler before clearing the iframe,
+    // otherwise setting src='about:blank' triggers the OLD handler
+    iframe.onload = null;
     iframe.src = 'about:blank';
     iframe.classList.add('active');
 
@@ -547,6 +549,7 @@
     cancelRetry();
     hidePageThemeToggle();
     // Clear any loaded page — config is a fresh-start context
+    iframe.onload = null;
     iframe.src = 'about:blank';
     iframe.classList.remove('active');
     hideBanner();
