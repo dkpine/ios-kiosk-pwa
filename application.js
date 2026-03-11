@@ -9,6 +9,7 @@
   // ---- Constants ----
 
   var STORAGE_KEY = 'ios_addr';
+  var THEME_KEY = 'ios_theme';
   var DEFAULT_URL = 'https://flyone-g.com';
   var RETRY_INITIAL_MS = 5000;
   var RETRY_BACKOFF = 1.5;
@@ -33,6 +34,7 @@
   var btnSave = document.getElementById('btn-save');
   var btnClear = document.getElementById('btn-clear');
   var btnClose = document.getElementById('btn-close');
+  var btnTheme = document.getElementById('btn-theme');
   var versionDisplay = document.getElementById('version-display');
 
   // ---- State ----
@@ -51,6 +53,7 @@
     if (versionDisplay) {
       versionDisplay.textContent = 'v' + APP_VERSION;
     }
+    initTheme();
     registerServiceWorker();
     requestWakeLock();
     setupHotkey();
@@ -96,6 +99,29 @@
         requestWakeLock();
       }
     });
+  }
+
+  // ============================================================
+  // Theme Toggle
+  // ============================================================
+
+  function initTheme() {
+    var saved = localStorage.getItem(THEME_KEY);
+    if (saved === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+    // Default is dark (no attribute needed)
+  }
+
+  function toggleTheme() {
+    var current = document.documentElement.getAttribute('data-theme');
+    if (current === 'light') {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem(THEME_KEY, 'dark');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'light');
+      localStorage.setItem(THEME_KEY, 'light');
+    }
   }
 
   // ============================================================
@@ -363,6 +389,9 @@
     btnClose.addEventListener('click', function () {
       hideConfigOverlay();
     });
+
+    // Theme toggle
+    btnTheme.addEventListener('click', toggleTheme);
 
     // Troubleshooting panel buttons
     btnRetry.addEventListener('click', function () {
