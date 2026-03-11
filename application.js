@@ -464,7 +464,7 @@
   function setupHotkey() {
     document.addEventListener('keydown', function (e) {
       if (e.repeat) return;
-      if (e.ctrlKey && e.shiftKey && (e.key === 'O' || e.key === 'o')) {
+      if (e.ctrlKey && (e.shiftKey || e.altKey) && (e.key === 'O' || e.key === 'o')) {
         e.preventDefault();
         toggleConfigOverlay();
       }
