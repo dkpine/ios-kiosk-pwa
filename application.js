@@ -435,6 +435,7 @@
       return;
     }
 
+    closeDiagnostics();
     addrInput.value = url;
     saveUrl(url);
     showLoadingAndConnect(url);
@@ -873,6 +874,21 @@
   // Network Diagnostics
   // ============================================================
 
+  function closeDiagnostics() {
+    if (diagResults) {
+      diagResults.classList.add('hidden');
+    }
+  }
+
+  function toggleDiagnostics() {
+    if (!diagResults) return;
+    if (!diagResults.classList.contains('hidden')) {
+      closeDiagnostics();
+      return;
+    }
+    runDiagnostics();
+  }
+
   function runDiagnostics() {
     if (!diagResults) return;
     diagResults.classList.remove('hidden');
@@ -974,7 +990,7 @@
     btnClose.addEventListener('click', function () { hideConfigOverlay(); });
 
     if (btnDiag) {
-      btnDiag.addEventListener('click', runDiagnostics);
+      btnDiag.addEventListener('click', toggleDiagnostics);
     }
 
     btnTheme.addEventListener('click', toggleTheme);
@@ -1047,6 +1063,7 @@
       return;
     }
 
+    closeDiagnostics();
     saveUrl(result.url);
     showLoadingAndConnect(result.url);
   }

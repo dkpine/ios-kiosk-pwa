@@ -654,7 +654,7 @@ kbd {
 .config-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid var(--border-subtle);
@@ -663,6 +663,7 @@ kbd {
 #version-display {
   font-size: 12px;
   color: var(--text-faint);
+  margin-left: auto;
 }
 
 /* --- Loading Spinner (after successful lookup) --- */
@@ -874,9 +875,7 @@ kbd {
 
 .ext-status {
   font-size: 11px;
-  flex: 1;
   text-align: center;
-  padding: 0 8px;
 }
 
 .ext-ok {
