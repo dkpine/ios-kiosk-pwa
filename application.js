@@ -178,21 +178,29 @@
 
     iframe.classList.add('active');
 
-    // Fallback timeout: if onload doesn't fire, the server is likely unreachable.
-    // Cross-origin iframes won't fire onerror for HTTP failures, so we use a timeout.
-    var loadTimeout = setTimeout(function () {
-      if (!connectionStatus.classList.contains('hidden')) {
-        handleConnectionFailure(url);
-      }
+    // Probe the URL with fetch first. The iframe onload event fires even
+    // for Chrome's "refused to connect" error page, so we can't rely on
+    // it alone. A no-cors fetch will throw a TypeError on network failure
+    // but succeed (with an opaque response) if the server is reachable.
+    var controller = new AbortController();
+    var probeTimeout = setTimeout(function () {
+      controller.abort();
     }, PROBE_TIMEOUT_MS);
 
-    // Set up load handler before setting src
-    iframe.onload = function () {
-      clearTimeout(loadTimeout);
-      handleConnectionSuccess();
-    };
-
-    iframe.src = url;
+    fetch(url, { mode: 'no-cors', signal: controller.signal })
+      .then(function () {
+        // Server responded — load in iframe and show success
+        clearTimeout(probeTimeout);
+        iframe.onload = function () {
+          handleConnectionSuccess();
+        };
+        iframe.src = url;
+      })
+      .catch(function () {
+        // Network error or timeout — server unreachable
+        clearTimeout(probeTimeout);
+        handleConnectionFailure(url);
+      });
   }
 
   function handleConnectionSuccess() {
