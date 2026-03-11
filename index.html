@@ -5,44 +5,166 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Instructor Station Kiosk</title>
   <meta name="theme-color" content="#1a1a2e">
-  <style>
-    html, body {
-      margin: 0; padding: 0; height: 100%; overflow: hidden;
-      background: #1a1a2e; color: #e0e0e0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-    #ext-frame {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: none;
-    }
-    #fallback {
-      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      align-items: center; justify-content: center; text-align: center;
-    }
-    .spinner {
-      width: 40px; height: 40px; margin: 0 auto 1rem;
-      border: 3px solid rgba(255,255,255,0.1);
-      border-top-color: #4fc3f7; border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .sub { font-size: 0.85rem; color: #888; max-width: 400px; margin: 0 auto; }
-  </style>
+  <link rel="icon" type="image/png" sizes="128x128" href="icons/icon-128.png">
+  <link rel="stylesheet" href="application.css">
 </head>
 <body>
-  <iframe id="ext-frame"
-          src="chrome-extension://ffcoooniadfdngdceeiopbkdljcgnoha/index.html"
-          allow="screen-wake-lock; fullscreen; autoplay"
-          allowfullscreen></iframe>
-  <div id="fallback">
-    <div>
-      <div class="spinner"></div>
-      <h1 style="font-size:1.5rem;font-weight:400;margin-bottom:1rem">Instructor Station Kiosk</h1>
-      <p class="sub">
-        Extension not available.<br>
-        Ensure the IOS Kiosk extension (ffcoooniadfdngdceeiopbkdljcgnoha) is installed.
-      </p>
+
+  <!-- BACKGROUND LOGO: visible during connecting/retry screens -->
+  <div id="bg-logo" class="bg-logo hidden">
+    <img src="logos/one-G-Logo_Navy-White-navy_text.png" alt="one-G simulation" class="bg-logo-img bg-logo-light">
+    <img src="logos/one-G-Logo_Navy-White.png" alt="one-G simulation" class="bg-logo-img bg-logo-dark">
+    <div class="bg-logo-dots">
+      <span class="dot"></span>
+      <span class="dot"></span>
+      <span class="dot"></span>
     </div>
   </div>
-  <script src="loader.js"></script>
+
+  <!-- CONNECTION STATUS BANNER -->
+  <div id="connection-status" class="banner hidden">
+    <span id="status-message">Connecting to Instructor Station...</span>
+  </div>
+
+  <!-- COUNTDOWN OVERLAY: centered timer shown during auto-retry -->
+  <div id="countdown-overlay" class="countdown-overlay hidden">
+    <div class="countdown-ring-wrap">
+      <svg class="countdown-ring" viewBox="0 0 120 120">
+        <circle class="countdown-ring-bg" cx="60" cy="60" r="52" fill="none" stroke-width="6"/>
+        <circle id="countdown-ring-progress" class="countdown-ring-fg" cx="60" cy="60" r="52" fill="none" stroke-width="6"
+                stroke-dasharray="326.73" stroke-dashoffset="0"/>
+      </svg>
+      <span id="countdown-seconds" class="countdown-number">10</span>
+      <span class="countdown-retry-label">Retry Now</span>
+    </div>
+    <p class="countdown-label">Retrying connection...</p>
+    <a href="#" id="countdown-troubleshoot-link" class="countdown-hint">Click here for troubleshooting steps</a>
+  </div>
+
+  <!-- TROUBLESHOOTING PANEL -->
+  <div id="troubleshoot-panel" class="hidden">
+    <div class="troubleshoot-dialog">
+      <h2>Connection Failed</h2>
+      <p class="troubleshoot-intro">Unable to reach the Instructor Operator Station. Follow these steps to restore connectivity:</p>
+      <ol class="troubleshoot-steps">
+        <li>Power down the ATD</li>
+        <li>Unplug the main ATD power cable from the wall</li>
+        <li>Wait ~30 seconds</li>
+        <li>Plug the main ATD power cable back into the wall</li>
+        <li><strong>IMPORTANT:</strong> Wait 2 minutes for the wireless router to fully boot (look for <em>simCONNECT</em> wireless network to appear on your smartphone's available network list)</li>
+        <li>Only after completing step 5, proceed with powering up the ATD like normal. After the startup countdown finishes, click the button below to attempt reconnection.</li>
+      </ol>
+      <p class="troubleshoot-support">If the failure persists, contact one-G support for further investigation.</p>
+      <div class="troubleshoot-actions">
+        <button id="btn-retry" class="btn btn-primary">Retry Connection</button>
+        <button id="btn-troubleshoot-close" class="btn btn-secondary">Dismiss</button>
+      </div>
+      <p class="troubleshoot-config-link">Or, edit the one-G IOS Kiosk address <a href="#" id="btn-open-config">configuration</a> (not necessary under normal circumstances)</p>
+    </div>
+  </div>
+
+  <!-- CONFIG OVERLAY -->
+  <div id="config-overlay" class="hidden">
+    <div class="config-dialog">
+      <div class="config-header">
+        <img src="icons/icon-128.png" alt="one-G" class="config-logo">
+        <h1>Instructor Station Kiosk</h1>
+        <p class="config-subtitle">one-G simulation</p>
+      </div>
+
+      <!-- Loading state -->
+      <div id="config-loading" class="config-loading hidden">
+        <svg class="spinner" viewBox="0 0 50 50">
+          <circle cx="25" cy="25" r="20" fill="none" stroke-width="4"></circle>
+        </svg>
+        <span class="loading-text">Loading...</span>
+      </div>
+
+      <div class="config-body">
+        <label for="tail-input">Tail Number</label>
+        <div class="lookup-row">
+          <input type="text" id="tail-input"
+                 placeholder="e.g. N41GT"
+                 autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button id="btn-lookup" class="btn btn-primary">Look Up</button>
+        </div>
+        <div id="lookup-msg" class="validation-msg"></div>
+
+        <button id="btn-manual-toggle" class="manual-toggle" type="button">
+          <span>or enter manually</span>
+          <svg class="manual-toggle-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3,5 8,11 13,5"/>
+          </svg>
+        </button>
+
+        <div id="manual-section" class="manual-section hidden">
+          <label for="ios-addr-input">IOS Address</label>
+          <input type="url" id="ios-addr-input"
+                 placeholder="e.g. http://10.38.1.1:3100/"
+                 autocomplete="off" autocapitalize="off" spellcheck="false">
+          <div id="validation-msg" class="validation-msg"></div>
+
+          <div class="config-actions">
+            <button id="btn-save" class="btn btn-primary">Save &amp; Connect</button>
+            <button id="btn-clear" class="btn btn-danger">Clear</button>
+            <button id="btn-close" class="btn btn-secondary">Close</button>
+          </div>
+        </div>
+
+        <div class="config-info">
+          <p>Current: <span id="current-url-display">Not configured</span></p>
+          <p class="config-hint">Press <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd> to open this dialog at any time</p>
+        </div>
+      </div>
+
+      <div id="diag-results" class="diag-results hidden"></div>
+
+      <div class="config-footer">
+        <button id="btn-diag" class="diag-toggle" title="Run network diagnostics" aria-label="Run diagnostics">diag</button>
+        <span id="ext-status" class="ext-status"></span>
+        <button id="btn-theme" class="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle theme">
+          <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="#232D66" opacity="0.5" stroke="none"/>
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="#ffffff"/>
+          </svg>
+          <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/>
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        </button>
+        <span id="version-display">v3.0.0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE-LEVEL THEME TOGGLE -->
+  <button id="page-theme-toggle" class="page-theme-toggle hidden" title="Toggle light/dark theme" aria-label="Toggle theme">
+    <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="#232D66" opacity="0.5" stroke="none"/>
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="#ffffff"/>
+    </svg>
+    <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.15"/>
+      <circle cx="12" cy="12" r="5"/>
+      <line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+
+  <script src="application.js"></script>
 </body>
 </html>

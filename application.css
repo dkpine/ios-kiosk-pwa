@@ -836,8 +836,8 @@ kbd {
 
 .diag-toggle {
   background: none;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
   font-size: 0.65rem;
   padding: 2px 6px;
   border-radius: 4px;
@@ -853,8 +853,8 @@ kbd {
 .diag-results {
   margin: 0 24px 12px;
   padding: 12px;
-  background: var(--input-bg);
-  border: 1px solid var(--border);
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   font-family: monospace;
   font-size: 0.75rem;
@@ -868,7 +868,24 @@ kbd {
 
 .diag-pass { color: #22c55e; }
 .diag-fail { color: #ef4444; }
-.diag-info { color: var(--text-secondary); }
+.diag-info { color: var(--text-muted); }
+
+/* --- Extension Status --- */
+
+.ext-status {
+  font-size: 11px;
+  flex: 1;
+  text-align: center;
+  padding: 0 8px;
+}
+
+.ext-ok {
+  color: var(--success);
+}
+
+.ext-missing {
+  color: var(--danger);
+}
 
 /* --- Utility --- */
 

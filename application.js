@@ -1,6 +1,15 @@
 /* ============================================================
-   Instructor Station Kiosk - PWA Config Shell
-   Core application logic — v1.11
+   Instructor Station Kiosk - GitHub Pages App
+   Core application logic — v3.0.0
+
+   This runs from the GitHub Pages HTTPS origin. HTTP fetch
+   probes to private-IP IOS servers are proxied through the
+   companion Chrome extension via externally_connectable
+   messaging. Once the IOS is found, the page navigates
+   directly to the HTTP URL (top-level navigation is not
+   subject to mixed-content blocking).
+
+   devices.json is fetched from the same GitHub Pages origin.
    ============================================================ */
 
 (function () {
@@ -8,18 +17,59 @@
 
   // ---- Constants ----
 
+  var EXT_ID = 'ffcoooniadfdngdceeiopbkdljcgnoha';
   var STORAGE_KEY = 'ios_addr';
   var THEME_KEY = 'ios_theme';
   var PROBE_TIMEOUT_MS = 8000;
-  var SUCCESS_BANNER_MS = 3000;
-  // Countdown retry schedule (seconds): 10s, 30s, 60s, then 60s forever
+  var SUCCESS_BANNER_MS = 2000;
   var COUNTDOWN_SCHEDULE = [10, 30, 60];
-  var RING_CIRCUMFERENCE = 2 * Math.PI * 52; // ~326.73, matches SVG r=52
-  var APP_VERSION = '1.11';
+  var RING_CIRCUMFERENCE = 2 * Math.PI * 52;
+  var APP_VERSION = '3.0.0';
+  var DEVICES_JSON_URL = './devices.json';
+
+  // ---- Extension Communication ----
+
+  var extensionAvailable = false;
+
+  function sendToExtension(message, callback) {
+    if (!chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
+      if (callback) callback({ ok: false, error: 'chrome.runtime not available' });
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage(EXT_ID, message, function (response) {
+        if (chrome.runtime.lastError) {
+          if (callback) callback({ ok: false, error: chrome.runtime.lastError.message });
+          return;
+        }
+        if (callback) callback(response || { ok: false, error: 'No response' });
+      });
+    } catch (e) {
+      if (callback) callback({ ok: false, error: e.message });
+    }
+  }
+
+  function checkExtension(callback) {
+    sendToExtension({ type: 'ping' }, function (response) {
+      extensionAvailable = !!(response && response.ok);
+      if (callback) callback(extensionAvailable, response);
+    });
+  }
+
+  function proxyFetch(url, timeout, callback) {
+    if (!extensionAvailable) {
+      callback({ ok: false, error: 'Extension not available' });
+      return;
+    }
+    sendToExtension({
+      type: 'fetch',
+      url: url,
+      timeout: timeout || PROBE_TIMEOUT_MS
+    }, callback);
+  }
 
   // ---- DOM References ----
 
-  var iframe = document.getElementById('ios-frame');
   var configOverlay = document.getElementById('config-overlay');
   var connectionStatus = document.getElementById('connection-status');
   var statusMessage = document.getElementById('status-message');
@@ -51,10 +101,11 @@
   var countdownRingWrap = countdownOverlay ? countdownOverlay.querySelector('.countdown-ring-wrap') : null;
   var btnDiag = document.getElementById('btn-diag');
   var diagResults = document.getElementById('diag-results');
+  var extStatus = document.getElementById('ext-status');
 
   // ---- State ----
 
-  var deviceDb = null; // loaded from devices.json
+  var deviceDb = null;
   var currentUrl = null;
   var retryTimer = null;
   var countdownInterval = null;
@@ -62,8 +113,46 @@
   var successTimer = null;
   var wakeLock = null;
   var countdownRetryUrl = null;
-  var activeProbeController = null; // AbortController for in-flight fetch probe
-  var loadingTimer = null; // setTimeout ID for showLoadingAndConnect
+  var loadingTimer = null;
+
+  // ============================================================
+  // Storage Helpers — uses localStorage (web page context)
+  // with extension chrome.storage.local as sync backup
+  // ============================================================
+
+  function storageGet(key, callback) {
+    var val = localStorage.getItem(key);
+    if (val !== null) {
+      if (callback) callback(val);
+      return;
+    }
+    if (extensionAvailable) {
+      sendToExtension({ type: 'storageGet', key: key }, function (resp) {
+        if (resp && resp.ok && resp.value !== null) {
+          localStorage.setItem(key, resp.value);
+          if (callback) callback(resp.value);
+        } else {
+          if (callback) callback(null);
+        }
+      });
+    } else {
+      if (callback) callback(null);
+    }
+  }
+
+  function storageSet(key, value) {
+    localStorage.setItem(key, value);
+    if (extensionAvailable) {
+      sendToExtension({ type: 'storageSet', key: key, value: value });
+    }
+  }
+
+  function storageRemove(key) {
+    localStorage.removeItem(key);
+    if (extensionAvailable) {
+      sendToExtension({ type: 'storageRemove', key: key });
+    }
+  }
 
   // ============================================================
   // Initialization
@@ -73,22 +162,53 @@
     if (versionDisplay) {
       versionDisplay.textContent = 'v' + APP_VERSION;
     }
-    initTheme();
-    loadDeviceDb();
-    registerServiceWorker();
-    setupWakeLock();
-    setupHotkey();
-    setupButtons();
-    setupScreenshotListener();
-    boot();
+
+    checkExtension(function (available, response) {
+      if (extStatus) {
+        if (available) {
+          extStatus.textContent = 'Extension v' + (response.version || '?') + ' connected';
+          extStatus.className = 'ext-status ext-ok';
+        } else {
+          extStatus.textContent = 'Extension not detected \u2014 HTTP probing unavailable';
+          extStatus.className = 'ext-status ext-missing';
+        }
+      }
+
+      initTheme();
+      setupWakeLock();
+      setupHotkey();
+      setupButtons();
+      loadDeviceDb();
+
+      var savedUrl = localStorage.getItem(STORAGE_KEY);
+
+      if (savedUrl) {
+        currentUrl = savedUrl;
+        updateCurrentUrlDisplay(savedUrl);
+        navigateToUrl(savedUrl);
+      } else if (extensionAvailable) {
+        sendToExtension({ type: 'storageGet', key: STORAGE_KEY }, function (resp) {
+          if (resp && resp.ok && resp.value) {
+            localStorage.setItem(STORAGE_KEY, resp.value);
+            currentUrl = resp.value;
+            updateCurrentUrlDisplay(resp.value);
+            navigateToUrl(resp.value);
+          } else {
+            showConfigOverlay();
+          }
+        });
+      } else {
+        showConfigOverlay();
+      }
+    });
   }
 
   // ============================================================
-  // Device Database (tail number → URL lookup)
+  // Device Database
   // ============================================================
 
   function loadDeviceDb() {
-    fetch('./devices.json')
+    fetch(DEVICES_JSON_URL)
       .then(function (res) { return res.json(); })
       .then(function (data) { deviceDb = data; })
       .catch(function () { deviceDb = null; });
@@ -111,18 +231,11 @@
       return;
     }
 
-    // Try exact match first, then progressively fuzzier matches:
-    // 1. Exact:           "N021GF" → "N021GF"
-    // 2. Prepend N:       "021GF"  → "N021GF"
-    // 3. Zero-pad after N: "N21GF" → "N021GF" (try 1-2 leading zeros)
-    // 4. Prepend N + pad: "21GF"   → "N021GF"
     var url = deviceDb[raw];
     if (!url && /^[0-9]/.test(raw)) {
       url = deviceDb['N' + raw];
     }
     if (!url) {
-      // Extract the numeric+suffix portion after optional 'N' prefix,
-      // then try zero-padded variants (e.g. N21GF → N021GF, N1GF → N001GF)
       var match = raw.match(/^(N?)(\d+)(.*)$/i);
       if (match) {
         var numPart = match[2];
@@ -139,7 +252,6 @@
       return;
     }
 
-    // Found — save and transition to loading spinner
     addrInput.value = url;
     saveUrl(url);
     showLoadingAndConnect(url);
@@ -150,19 +262,14 @@
     lookupMsg.className = 'validation-msg';
   }
 
-  // Shared loading transition: replaces config UI with spinner, then navigates
   function showLoadingAndConnect(url) {
-    // Cancel any previously queued loading transition (rapid lookups)
     if (loadingTimer) {
       clearTimeout(loadingTimer);
       loadingTimer = null;
     }
-
-    // Switch dialog to loading state (CSS hides header/body/footer, shrinks dialog)
     if (configDialog) configDialog.classList.add('loading-state');
     if (configLoading) configLoading.classList.remove('hidden');
 
-    // After the CSS transition + a brief pause, navigate and dismiss
     loadingTimer = setTimeout(function () {
       loadingTimer = null;
       navigateToUrl(url);
@@ -183,47 +290,20 @@
   }
 
   // ============================================================
-  // Service Worker Registration
-  // ============================================================
-
-  function registerServiceWorker() {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js?v=1.21', { updateViaCache: 'none' })
-        .then(function (reg) {
-          // Force update check on every page load
-          reg.update().catch(function () {});
-        })
-        .catch(function (err) {
-          console.warn('[Kiosk] Service worker registration failed:', err);
-        });
-    }
-  }
-
-  // ============================================================
-  // Wake Lock (replaces chrome.power.requestKeepAwake)
+  // Wake Lock
   // ============================================================
 
   function requestWakeLock() {
     if (!('wakeLock' in navigator)) return;
-
     navigator.wakeLock.request('screen').then(function (lock) {
       wakeLock = lock;
-      lock.addEventListener('release', function () {
-        wakeLock = null;
-      });
-    }).catch(function (err) {
-      console.warn('[Kiosk] WakeLock request failed:', err);
-    });
+      lock.addEventListener('release', function () { wakeLock = null; });
+    }).catch(function () {});
   }
 
   function setupWakeLock() {
-    if (!('wakeLock' in navigator)) {
-      console.warn('[Kiosk] WakeLock API not available');
-      return;
-    }
+    if (!('wakeLock' in navigator)) return;
     requestWakeLock();
-
-    // Re-acquire when page becomes visible again (registered once)
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'visible' && !wakeLock) {
         requestWakeLock();
@@ -240,7 +320,6 @@
     if (saved === 'dark') {
       document.documentElement.removeAttribute('data-theme');
     } else {
-      // Default is light
       document.documentElement.setAttribute('data-theme', 'light');
     }
   }
@@ -249,10 +328,10 @@
     var current = document.documentElement.getAttribute('data-theme');
     if (current === 'light') {
       document.documentElement.removeAttribute('data-theme');
-      localStorage.setItem(THEME_KEY, 'dark');
+      storageSet(THEME_KEY, 'dark');
     } else {
       document.documentElement.setAttribute('data-theme', 'light');
-      localStorage.setItem(THEME_KEY, 'light');
+      storageSet(THEME_KEY, 'light');
     }
   }
 
@@ -271,8 +350,6 @@
   function normalizeUrl(input) {
     var trimmed = (input || '').trim();
     if (!trimmed) return null;
-
-    // Auto-prepend http:// if no scheme provided
     if (!/^https?:\/\//i.test(trimmed)) {
       trimmed = 'http://' + trimmed;
     }
@@ -285,13 +362,14 @@
       if (url.protocol !== 'http:' && url.protocol !== 'https:') {
         return { valid: false, error: 'URL must use http:// or https://' };
       }
-      // Allow https://flyone-g.com (any path)
       if (url.hostname === 'flyone-g.com' || url.hostname === 'www.flyone-g.com') {
         return { valid: true, url: url.href };
       }
-      // Allow internal IOS addresses: http://<private-IP>:3100
       var isPrivateIp = /^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})$/.test(url.hostname);
       if (isPrivateIp && url.port === '3100') {
+        return { valid: true, url: url.href };
+      }
+      if (url.hostname === 'localhost' && url.port === '3100') {
         return { valid: true, url: url.href };
       }
       return { valid: false, error: 'Only valid one-G IOS addresses and flyone-g.com are allowed' };
@@ -301,60 +379,35 @@
   }
 
   // ============================================================
-  // URL Persistence (localStorage)
+  // URL Persistence
   // ============================================================
 
   function getSavedUrl() {
-    return localStorage.getItem(STORAGE_KEY);
+    return localStorage.getItem(STORAGE_KEY) || null;
   }
 
   function saveUrl(url) {
-    localStorage.setItem(STORAGE_KEY, url);
+    storageSet(STORAGE_KEY, url);
     currentUrl = url;
     updateCurrentUrlDisplay(url);
   }
 
   function clearSavedUrl() {
-    localStorage.removeItem(STORAGE_KEY);
+    storageRemove(STORAGE_KEY);
     currentUrl = null;
-    abortActiveProbe();
-    iframe.onload = null;
-    iframe.src = 'about:blank';
-    iframe.classList.remove('active');
     cancelRetry();
     updateCurrentUrlDisplay(null);
   }
 
   // ============================================================
-  // Boot Sequence
+  // Navigation & Connection Management
+  //
+  // Instead of loading the IOS in an iframe (which would be
+  // blocked by mixed-content restrictions on this HTTPS page),
+  // we probe the URL via the extension proxy, then navigate
+  // the entire page to the HTTP IOS URL. Top-level navigation
+  // from HTTPS to HTTP is allowed by browsers.
   // ============================================================
-
-  function boot() {
-    var saved = getSavedUrl();
-    if (saved) {
-      var normalized = normalizeUrl(saved);
-      if (normalized) {
-        currentUrl = normalized;
-        updateCurrentUrlDisplay(normalized);
-        navigateToUrl(normalized);
-        return;
-      }
-    }
-    // No saved URL or invalid -- show config
-    showConfigOverlay();
-  }
-
-  // ============================================================
-  // Iframe Navigation & Connection Management
-  // ============================================================
-
-  // Abort any in-flight fetch probe so stale callbacks never fire
-  function abortActiveProbe() {
-    if (activeProbeController) {
-      activeProbeController.abort();
-      activeProbeController = null;
-    }
-  }
 
   function navigateToUrl(url) {
     cancelRetry();
@@ -363,111 +416,56 @@
     if (bgLogo) bgLogo.classList.remove('hidden');
     showPageThemeToggle();
 
-    // Abort any previous probe before starting a new one
-    abortActiveProbe();
+    if (!extensionAvailable) {
+      directProbe(url);
+      return;
+    }
 
-    // Detach any previous onload handler before clearing the iframe,
-    // otherwise setting src='about:blank' triggers the OLD handler
-    iframe.onload = null;
-    iframe.src = 'about:blank';
-    iframe.classList.add('active');
+    proxyFetch(url, PROBE_TIMEOUT_MS, function (response) {
+      if (response && response.ok) {
+        handleConnectionSuccess(url);
+      } else {
+        var err = { message: response ? response.error : 'Unknown error' };
+        console.error('[Kiosk] Probe failed for ' + url + ':', err.message);
+        handleConnectionFailure(url, err);
+      }
+    });
+  }
 
-    // Probe the URL with fetch first. The iframe onload event fires even
-    // for Chrome's "refused to connect" error page, so we can't rely on
-    // it alone. A no-cors fetch will throw a TypeError on network failure
-    // but succeed (with an opaque response) if the server is reachable.
+  function directProbe(url) {
     var controller = new AbortController();
-    activeProbeController = controller;
-    var signal = controller.signal;
-    var probeTimeout = setTimeout(function () {
-      controller.abort(); // use local ref, not shared activeProbeController
-    }, PROBE_TIMEOUT_MS);
+    var timeout = setTimeout(function () { controller.abort(); }, PROBE_TIMEOUT_MS);
 
-    fetch(url, { mode: 'no-cors', signal: signal })
+    fetch(url, { mode: 'no-cors', signal: controller.signal })
       .then(function () {
-        clearTimeout(probeTimeout);
-
-        // Guard: if a newer navigateToUrl call has replaced our controller,
-        // bail out — our results are stale. We check identity (not
-        // signal.aborted) because our own probeTimeout also aborts the
-        // signal, and we must NOT bail on self-inflicted timeouts.
-        if (activeProbeController !== controller) return;
-
-        activeProbeController = null;
-
-        // The first onload after setting iframe.src is our initial load.
-        // We already proved the server is reachable via the fetch probe,
-        // so treat this as a success immediately.
-        //
-        // Subsequent iframe navigations (link clicks, form submits inside
-        // the loaded page) need a re-probe because the server may have
-        // gone down between navigations.
-        var isFirstLoad = true;
-
-        iframe.onload = function () {
-          if (isFirstLoad) {
-            isFirstLoad = false;
-            handleConnectionSuccess();
-            return;
-          }
-
-          // Re-probe on subsequent navigations within the iframe
-          var navController = new AbortController();
-          var navTimeout = setTimeout(function () {
-            navController.abort();
-          }, PROBE_TIMEOUT_MS);
-
-          fetch(currentUrl, { mode: 'no-cors', signal: navController.signal })
-            .then(function () {
-              clearTimeout(navTimeout);
-              handleConnectionSuccess();
-            })
-            .catch(function () {
-              clearTimeout(navTimeout);
-              handleConnectionFailure(currentUrl);
-            });
-        };
-
-        iframe.src = url;
+        clearTimeout(timeout);
+        handleConnectionSuccess(url);
       })
       .catch(function (err) {
-        clearTimeout(probeTimeout);
-
-        // Guard: if a newer navigateToUrl replaced our controller, bail out.
-        // Note: our own probeTimeout abort also lands here, but in that case
-        // activeProbeController still === controller, so we correctly proceed
-        // to handleConnectionFailure.
-        if (activeProbeController !== controller) return;
-
-        activeProbeController = null;
-        console.error('[Kiosk] Probe failed for ' + url + ':', err.name, err.message);
+        clearTimeout(timeout);
+        console.error('[Kiosk] Direct probe failed for ' + url + ':', err.message);
         handleConnectionFailure(url, err);
       });
   }
 
-  function handleConnectionSuccess() {
+  function handleConnectionSuccess(url) {
     stopCountdown();
     retryCount = 0;
     if (bgLogo) bgLogo.classList.add('hidden');
     hidePageThemeToggle();
 
-    // Show green success banner
-    showBanner('success', 'Connected to Instructor Station');
+    showBanner('success', 'Connected \u2014 launching Instructor Station...');
 
-    // Slide it away after a few seconds
     if (successTimer) clearTimeout(successTimer);
     successTimer = setTimeout(function () {
-      connectionStatus.classList.add('banner-slide-out');
-      // After the CSS transition finishes, hide completely
-      setTimeout(function () {
-        hideBanner();
-      }, 450);
+      // Navigate the entire page to the HTTP IOS URL.
+      // Top-level navigation from HTTPS to HTTP is allowed.
+      window.location.href = url;
     }, SUCCESS_BANNER_MS);
   }
 
   function handleConnectionFailure(url, err) {
     if (bgLogo) bgLogo.classList.add('hidden');
-    // Build failure message with diagnostic detail when available
     var msg = 'Connection failed';
     if (err && err.message) {
       msg += ' (' + err.message + ')';
@@ -485,14 +483,13 @@
     return COUNTDOWN_SCHEDULE[index];
   }
 
-  // Named handler so we can add/remove it cleanly
   function onPageClickDuringCountdown() {
     showTroubleshootPanel();
   }
 
   function onRingClickRetryNow(e) {
-    e.stopPropagation(); // Don't trigger troubleshoot panel
-    var url = countdownRetryUrl; // save before stopCountdown nulls it
+    e.stopPropagation();
+    var url = countdownRetryUrl;
     if (url) {
       stopCountdown();
       retryCount++;
@@ -506,23 +503,18 @@
     var totalSeconds = getCountdownDuration();
     var remaining = totalSeconds;
 
-    // Show the centered countdown overlay and make it intercept all clicks
-    // (the iframe at z-index 1 would eat clicks otherwise)
     if (countdownOverlay) {
       countdownOverlay.classList.remove('hidden');
       countdownOverlay.style.pointerEvents = 'auto';
       countdownOverlay.addEventListener('click', onPageClickDuringCountdown);
     }
 
-    // Ring click = immediate retry
     if (countdownRingWrap) {
       countdownRingWrap.addEventListener('click', onRingClickRetryNow);
     }
 
-    // Set initial number
     if (countdownSecondsEl) countdownSecondsEl.textContent = remaining;
 
-    // Reset ring to full, then animate to empty
     if (countdownRingProgress) {
       countdownRingProgress.style.transition = 'none';
       countdownRingProgress.setAttribute('stroke-dashoffset', '0');
@@ -539,7 +531,6 @@
     countdownInterval = setInterval(function () {
       remaining--;
       if (countdownSecondsEl) countdownSecondsEl.textContent = Math.max(remaining, 0);
-
       if (remaining <= 0) {
         stopCountdown();
         retryCount++;
@@ -578,7 +569,7 @@
   }
 
   // ============================================================
-  // Banner UI (amber = connecting, green = success, red = error)
+  // Banner UI
   // ============================================================
 
   function showBanner(type, message) {
@@ -587,7 +578,7 @@
       successTimer = null;
     }
     statusMessage.textContent = message;
-    connectionStatus.className = 'banner'; // reset all modifier classes
+    connectionStatus.className = 'banner';
     connectionStatus.onclick = null;
 
     if (type === 'success') {
@@ -595,7 +586,6 @@
     } else if (type === 'error') {
       connectionStatus.classList.add('banner-error');
     }
-    // 'connecting' uses the default amber style (no modifier class needed)
   }
 
   function hideBanner() {
@@ -608,24 +598,18 @@
   // ============================================================
 
   function showTroubleshootPanel() {
-    // Pause the countdown while viewing troubleshooting steps
     stopCountdown();
     hidePageThemeToggle();
     troubleshootPanel.classList.remove('hidden');
   }
 
-  // Pure UI dismiss — hides panel without triggering navigation.
-  // Used by navigateToUrl and showConfigOverlay to avoid re-entrancy.
   function dismissTroubleshootPanel() {
     troubleshootPanel.classList.add('hidden');
   }
 
-  // User-triggered dismiss — hides panel and reconnects if it was visible.
-  // Used by Retry, Dismiss buttons, and outside-click handlers.
   function hideTroubleshootPanel() {
     var wasVisible = !troubleshootPanel.classList.contains('hidden');
     troubleshootPanel.classList.add('hidden');
-
     if (wasVisible && currentUrl) {
       retryCount = 0;
       navigateToUrl(currentUrl);
@@ -639,13 +623,8 @@
   function showConfigOverlay() {
     resetLoadingState();
     cancelRetry();
-    abortActiveProbe();
     dismissTroubleshootPanel();
     hidePageThemeToggle();
-    // Clear any loaded page — config is a fresh-start context
-    iframe.onload = null;
-    iframe.src = 'about:blank';
-    iframe.classList.remove('active');
     hideBanner();
     if (bgLogo) bgLogo.classList.add('hidden');
     addrInput.value = currentUrl || '';
@@ -656,7 +635,6 @@
     clearValidation();
     clearLookupMsg();
 
-    // Only show Close button if a URL is already configured
     btnClose.style.display = currentUrl ? '' : 'none';
 
     setTimeout(function () {
@@ -665,12 +643,9 @@
   }
 
   function hideConfigOverlay() {
-    // Only allow closing if a URL is configured
     if (!currentUrl) return;
     configOverlay.classList.add('hidden');
     clearValidation();
-
-    // Re-attempt connection to the IOS whenever the overlay is dismissed
     retryCount = 0;
     navigateToUrl(currentUrl);
   }
@@ -729,56 +704,88 @@
     diagResults.classList.remove('hidden');
     diagResults.innerHTML = '<span class="diag-info">Running diagnostics...</span>\n';
 
-    var tests = [
-      { label: 'HTTPS public (flyone-g.com)', url: 'https://flyone-g.com', mode: 'no-cors' },
-      { label: 'Protocol', url: location.protocol, skip: true }
-    ];
-
-    // Add configured IOS URL if available
-    if (currentUrl) {
-      tests.push({ label: 'IOS (' + currentUrl + ')', url: currentUrl, mode: 'no-cors' });
-      tests.push({ label: 'IOS cors mode', url: currentUrl, mode: 'cors' });
-    }
-
     var lines = [];
     lines.push('<span class="diag-info">Page origin: ' + location.origin + '</span>');
     lines.push('<span class="diag-info">Protocol: ' + location.protocol + '</span>');
-    lines.push('<span class="diag-info">SW controller: ' + (navigator.serviceWorker && navigator.serviceWorker.controller ? 'yes' : 'none') + '</span>');
+    lines.push('<span class="diag-info">Extension: ' + (extensionAvailable ? 'yes' : 'NO \u2014 HTTP probing disabled') + '</span>');
+    lines.push('<span class="diag-info">App version: v' + APP_VERSION + '</span>');
     lines.push('<span class="diag-info">Configured URL: ' + (currentUrl || 'none') + '</span>');
     lines.push('');
 
-    var fetchTests = tests.filter(function (t) { return !t.skip; });
-    var remaining = fetchTests.length;
+    var tests = [];
 
-    if (remaining === 0) {
-      lines.push('<span class="diag-info">No fetch tests to run (no URL configured)</span>');
-      diagResults.innerHTML = lines.join('\n');
-      return;
-    }
+    tests.push({
+      label: 'HTTPS fetch (devices.json)',
+      run: function (cb) {
+        var controller = new AbortController();
+        var t = setTimeout(function () { controller.abort(); }, 5000);
+        fetch('./devices.json', { signal: controller.signal })
+          .then(function (r) { clearTimeout(t); cb('PASS', 'status=' + r.status); })
+          .catch(function (e) { clearTimeout(t); cb('FAIL', e.message); });
+      }
+    });
 
-    diagResults.innerHTML = lines.join('\n') + '\n<span class="diag-info">Running ' + remaining + ' fetch tests...</span>';
-
-    fetchTests.forEach(function (test) {
-      var controller = new AbortController();
-      var timeout = setTimeout(function () { controller.abort(); }, 8000);
-
-      fetch(test.url, { mode: test.mode, signal: controller.signal })
-        .then(function (resp) {
-          clearTimeout(timeout);
-          lines.push('<span class="diag-pass">PASS</span> ' + test.label + ' → type=' + resp.type + ' status=' + resp.status);
-        })
-        .catch(function (err) {
-          clearTimeout(timeout);
-          lines.push('<span class="diag-fail">FAIL</span> ' + test.label + ' → ' + err.name + ': ' + err.message);
-        })
-        .then(function () {
-          remaining--;
-          if (remaining === 0) {
-            lines.push('');
-            lines.push('<span class="diag-info">Tests complete. Share these results for debugging.</span>');
-            diagResults.innerHTML = lines.join('\n');
+    tests.push({
+      label: 'Extension proxy ping',
+      run: function (cb) {
+        if (!extensionAvailable) {
+          cb('FAIL', 'Extension not connected');
+          return;
+        }
+        sendToExtension({ type: 'ping' }, function (resp) {
+          if (resp && resp.ok) {
+            cb('PASS', 'v' + (resp.version || '?'));
+          } else {
+            cb('FAIL', resp ? resp.error : 'No response');
           }
         });
+      }
+    });
+
+    if (currentUrl) {
+      tests.push({
+        label: 'IOS via extension (' + currentUrl + ')',
+        run: function (cb) {
+          if (!extensionAvailable) {
+            cb('FAIL', 'Extension not connected');
+            return;
+          }
+          proxyFetch(currentUrl, 8000, function (resp) {
+            if (resp && resp.ok) {
+              cb('PASS', 'type=' + resp.type + ' status=' + resp.status);
+            } else {
+              cb('FAIL', resp ? resp.error : 'No response');
+            }
+          });
+        }
+      });
+
+      tests.push({
+        label: 'IOS direct fetch (' + currentUrl + ')',
+        run: function (cb) {
+          var controller = new AbortController();
+          var t = setTimeout(function () { controller.abort(); }, 8000);
+          fetch(currentUrl, { mode: 'no-cors', signal: controller.signal })
+            .then(function (r) { clearTimeout(t); cb('PASS', 'type=' + r.type); })
+            .catch(function (e) { clearTimeout(t); cb('FAIL', e.message); });
+        }
+      });
+    }
+
+    var remaining = tests.length;
+    diagResults.innerHTML = lines.join('\n') + '\n<span class="diag-info">Running ' + remaining + ' tests...</span>';
+
+    tests.forEach(function (test) {
+      test.run(function (status, detail) {
+        var cls = status === 'PASS' ? 'diag-pass' : 'diag-fail';
+        lines.push('<span class="' + cls + '">' + status + '</span> ' + test.label + ' \u2192 ' + detail);
+        remaining--;
+        if (remaining === 0) {
+          lines.push('');
+          lines.push('<span class="diag-info">Tests complete.</span>');
+          diagResults.innerHTML = lines.join('\n');
+        }
+      });
     });
   }
 
@@ -789,19 +796,14 @@
   function setupButtons() {
     btnSave.addEventListener('click', handleSave);
     btnClear.addEventListener('click', handleClear);
-    btnClose.addEventListener('click', function () {
-      hideConfigOverlay();
-    });
+    btnClose.addEventListener('click', function () { hideConfigOverlay(); });
 
-    // Network diagnostics
     if (btnDiag) {
       btnDiag.addEventListener('click', runDiagnostics);
     }
 
-    // Theme toggle (config dialog)
     btnTheme.addEventListener('click', toggleTheme);
 
-    // Page-level theme toggle (connecting / failed screens)
     if (pageThemeToggle) {
       pageThemeToggle.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -809,39 +811,23 @@
       });
     }
 
-    // Click outside config dialog to close
     configOverlay.addEventListener('click', function (e) {
-      if (e.target === configOverlay) {
-        hideConfigOverlay();
-      }
+      if (e.target === configOverlay) hideConfigOverlay();
     });
 
-    // Click outside troubleshoot dialog to close
     troubleshootPanel.addEventListener('click', function (e) {
-      if (e.target === troubleshootPanel) {
-        hideTroubleshootPanel();
-      }
+      if (e.target === troubleshootPanel) hideTroubleshootPanel();
     });
 
-    // Troubleshooting panel buttons
-    btnRetry.addEventListener('click', function () {
-      hideTroubleshootPanel();
-    });
+    btnRetry.addEventListener('click', function () { hideTroubleshootPanel(); });
+    btnTroubleshootClose.addEventListener('click', function () { hideTroubleshootPanel(); });
 
-    btnTroubleshootClose.addEventListener('click', function () {
-      hideTroubleshootPanel();
-    });
-
-    // Troubleshoot panel → open config link
-    // Use dismissTroubleshootPanel (not hideTroubleshootPanel) to avoid
-    // triggering a wasted navigateToUrl that showConfigOverlay cancels.
     btnOpenConfig.addEventListener('click', function (e) {
       e.preventDefault();
       dismissTroubleshootPanel();
       showConfigOverlay();
     });
 
-    // Countdown overlay troubleshoot link
     if (countdownTroubleshootLink) {
       countdownTroubleshootLink.addEventListener('click', function (e) {
         e.preventDefault();
@@ -850,7 +836,6 @@
       });
     }
 
-    // Manual section toggle
     btnManualToggle.addEventListener('click', function () {
       var isHidden = manualSection.classList.contains('hidden');
       if (isHidden) {
@@ -863,21 +848,12 @@
       }
     });
 
-    // Tail number lookup
     btnLookup.addEventListener('click', handleLookup);
     tailInput.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleLookup();
-      }
+      if (e.key === 'Enter') { e.preventDefault(); handleLookup(); }
     });
-
-    // Enter key in manual address input triggers save
     addrInput.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleSave();
-      }
+      if (e.key === 'Enter') { e.preventDefault(); handleSave(); }
     });
   }
 
@@ -905,38 +881,6 @@
       clearSavedUrl();
       showConfigOverlay();
     }
-  }
-
-  // ============================================================
-  // Screenshot / Print Support (replaces chrome.runtime messaging)
-  //
-  // The legacy Chrome App received screenshot requests via
-  // chrome.runtime.onMessageExternal from localhost:3100 / ios:3100.
-  //
-  // In the PWA, external systems can use window.postMessage to send
-  // requests to this window. The instructor station server code
-  // would need to be updated to use postMessage instead of
-  // chrome.runtime.sendMessage.
-  //
-  // Expected message format:
-  //   { name: 'screenshot' }
-  //   { name: 'print' }
-  // ============================================================
-
-  function setupScreenshotListener() {
-    window.addEventListener('message', function (event) {
-      // Only handle messages with expected structure
-      if (!event.data || typeof event.data !== 'object') return;
-
-      if (event.data.name === 'screenshot' || event.data.name === 'print') {
-        try {
-          iframe.contentWindow.print();
-        } catch (e) {
-          // Cross-origin print may fail; fall back to window print
-          window.print();
-        }
-      }
-    });
   }
 
   // ============================================================
