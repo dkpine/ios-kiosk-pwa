@@ -216,11 +216,29 @@
 
     fetch(url, { mode: 'no-cors', signal: controller.signal })
       .then(function () {
-        // Server responded — load in iframe and show success
+        // Server responded — load in iframe
         clearTimeout(probeTimeout);
+
+        // Every subsequent iframe navigation (link clicks, form submits)
+        // must re-probe the server before declaring success. The server
+        // may have died between the initial load and the next navigation.
         iframe.onload = function () {
-          handleConnectionSuccess();
+          var navController = new AbortController();
+          var navTimeout = setTimeout(function () {
+            navController.abort();
+          }, PROBE_TIMEOUT_MS);
+
+          fetch(currentUrl, { mode: 'no-cors', signal: navController.signal })
+            .then(function () {
+              clearTimeout(navTimeout);
+              handleConnectionSuccess();
+            })
+            .catch(function () {
+              clearTimeout(navTimeout);
+              handleConnectionFailure(currentUrl);
+            });
         };
+
         iframe.src = url;
       })
       .catch(function () {
