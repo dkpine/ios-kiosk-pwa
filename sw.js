@@ -10,7 +10,7 @@
    needing manual cache clears.
    ============================================================ */
 
-var CACHE_NAME = 'ios-kiosk-shell-v1.20';
+var CACHE_NAME = 'ios-kiosk-shell-v1.21';
 
 var SHELL_ASSETS = [
   './',
@@ -37,7 +37,7 @@ self.addEventListener('install', function (event) {
   );
 });
 
-// Activate: clean up old caches, take control immediately
+// Activate: clean up old caches, take control, force-reload stale pages
 self.addEventListener('activate', function (event) {
   event.waitUntil(
     caches.keys()
@@ -50,6 +50,16 @@ self.addEventListener('activate', function (event) {
       })
       .then(function () {
         return self.clients.claim();
+      })
+      .then(function () {
+        // Force-reload all open windows so they pick up the new SW
+        // and fresh code. This breaks the cache-first → stale-page loop.
+        return self.clients.matchAll({ type: 'window' });
+      })
+      .then(function (windowClients) {
+        windowClients.forEach(function (client) {
+          client.navigate(client.url);
+        });
       })
   );
 });

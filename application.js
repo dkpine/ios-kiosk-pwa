@@ -1,6 +1,6 @@
 /* ============================================================
    Instructor Station Kiosk - PWA Config Shell
-   Core application logic — v1.10
+   Core application logic — v1.11
    ============================================================ */
 
 (function () {
@@ -15,7 +15,7 @@
   // Countdown retry schedule (seconds): 10s, 30s, 60s, then 60s forever
   var COUNTDOWN_SCHEDULE = [10, 30, 60];
   var RING_CIRCUMFERENCE = 2 * Math.PI * 52; // ~326.73, matches SVG r=52
-  var APP_VERSION = '1.10';
+  var APP_VERSION = '1.11';
 
   // ---- DOM References ----
 
@@ -186,9 +186,14 @@
 
   function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(function (err) {
-        console.warn('[Kiosk] Service worker registration failed:', err);
-      });
+      navigator.serviceWorker.register('./sw.js?v=1.21', { updateViaCache: 'none' })
+        .then(function (reg) {
+          // Force update check on every page load
+          reg.update().catch(function () {});
+        })
+        .catch(function (err) {
+          console.warn('[Kiosk] Service worker registration failed:', err);
+        });
     }
   }
 
