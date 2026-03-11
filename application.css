@@ -246,7 +246,7 @@ html, body {
   top: 0;
   right: 0;
   background: none;
-  border: 2px solid var(--border-subtle);
+  border: 2px solid var(--text-muted);
   border-radius: 50%;
   width: 40px;
   height: 40px;
