@@ -13,9 +13,10 @@
   var DEFAULT_URL = 'https://flyone-g.com';
   var PROBE_TIMEOUT_MS = 8000;
   var SUCCESS_BANNER_MS = 3000;
-  // Countdown retry schedule (seconds): 5s, 10s, 30s, 60s, then 60s forever
-  var COUNTDOWN_SCHEDULE = [5, 10, 30, 60];
-  var APP_VERSION = '1.06';
+  // Countdown retry schedule (seconds): 10s, 30s, 60s, then 60s forever
+  var COUNTDOWN_SCHEDULE = [10, 30, 60];
+  var RING_CIRCUMFERENCE = 2 * Math.PI * 52; // ~326.73, matches SVG r=52
+  var APP_VERSION = '1.07';
 
   // ---- DOM References ----
 
@@ -42,8 +43,9 @@
   var versionDisplay = document.getElementById('version-display');
   var configLoading = document.getElementById('config-loading');
   var configDialog = configOverlay ? configOverlay.querySelector('.config-dialog') : null;
+  var countdownOverlay = document.getElementById('countdown-overlay');
   var countdownSecondsEl = document.getElementById('countdown-seconds');
-  var countdownProgress = document.getElementById('countdown-progress');
+  var countdownRingProgress = document.getElementById('countdown-ring-progress');
 
   // ---- State ----
 
@@ -349,14 +351,16 @@
   }
 
   function handleConnectionFailure(url) {
-    // Show troubleshoot panel with countdown timer
-    showBanner('error', 'Connection failed');
-    showTroubleshootPanel();
+    // Show banner with countdown text + centered countdown overlay
+    var duration = getCountdownDuration();
+    showBanner('error', 'Connection failed \u2014 retrying in ' + duration + 's');
+    connectionStatus.onclick = function () {
+      showTroubleshootPanel();
+    };
     startCountdown(url);
   }
 
   function getCountdownDuration() {
-    // Use schedule array, capping at the last value for subsequent retries
     var index = Math.min(retryCount, COUNTDOWN_SCHEDULE.length - 1);
     return COUNTDOWN_SCHEDULE[index];
   }
@@ -366,20 +370,22 @@
     var totalSeconds = getCountdownDuration();
     var remaining = totalSeconds;
 
-    // Set initial display
-    if (countdownSecondsEl) countdownSecondsEl.textContent = remaining;
-    if (countdownProgress) {
-      // Reset to full width instantly, then animate down
-      countdownProgress.style.transition = 'none';
-      countdownProgress.style.width = '100%';
-    }
+    // Show the centered countdown overlay
+    if (countdownOverlay) countdownOverlay.classList.remove('hidden');
 
-    // Start the shrinking animation after a brief repaint
+    // Set initial number
+    if (countdownSecondsEl) countdownSecondsEl.textContent = remaining;
+
+    // Reset ring to full, then animate to empty
+    if (countdownRingProgress) {
+      countdownRingProgress.style.transition = 'none';
+      countdownRingProgress.setAttribute('stroke-dashoffset', '0');
+    }
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
-        if (countdownProgress) {
-          countdownProgress.style.transition = 'width ' + totalSeconds + 's linear';
-          countdownProgress.style.width = '0%';
+        if (countdownRingProgress) {
+          countdownRingProgress.style.transition = 'stroke-dashoffset ' + totalSeconds + 's linear';
+          countdownRingProgress.setAttribute('stroke-dashoffset', String(RING_CIRCUMFERENCE));
         }
       });
     });
@@ -388,12 +394,14 @@
       remaining--;
       if (countdownSecondsEl) countdownSecondsEl.textContent = Math.max(remaining, 0);
 
+      // Update banner text
+      if (remaining > 0) {
+        statusMessage.textContent = 'Connection failed \u2014 retrying in ' + remaining + 's';
+      }
+
       if (remaining <= 0) {
         stopCountdown();
         retryCount++;
-        // Auto-retry: navigate directly (don't go through hideTroubleshootPanel
-        // to avoid the recursion guard resetting retryCount)
-        troubleshootPanel.classList.add('hidden');
         navigateToUrl(url);
       }
     }, 1000);
@@ -408,6 +416,8 @@
       clearTimeout(retryTimer);
       retryTimer = null;
     }
+    // Hide the centered overlay
+    if (countdownOverlay) countdownOverlay.classList.add('hidden');
   }
 
   function cancelRetry() {
@@ -450,13 +460,14 @@
   // ============================================================
 
   function showTroubleshootPanel() {
+    // Pause the countdown while viewing troubleshooting steps
+    stopCountdown();
     troubleshootPanel.classList.remove('hidden');
   }
 
   function hideTroubleshootPanel() {
     // Only trigger reconnection if the panel was actually visible
     var wasVisible = !troubleshootPanel.classList.contains('hidden');
-    stopCountdown();
     troubleshootPanel.classList.add('hidden');
 
     if (wasVisible && currentUrl) {

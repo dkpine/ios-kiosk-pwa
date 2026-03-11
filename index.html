@@ -24,6 +24,20 @@
     <span id="status-message">Connecting to Instructor Station...</span>
   </div>
 
+  <!-- COUNTDOWN OVERLAY: centered timer shown during auto-retry -->
+  <div id="countdown-overlay" class="countdown-overlay hidden">
+    <div class="countdown-ring-wrap">
+      <svg class="countdown-ring" viewBox="0 0 120 120">
+        <circle class="countdown-ring-bg" cx="60" cy="60" r="52" fill="none" stroke-width="6"/>
+        <circle id="countdown-ring-progress" class="countdown-ring-fg" cx="60" cy="60" r="52" fill="none" stroke-width="6"
+                stroke-dasharray="326.73" stroke-dashoffset="0"/>
+      </svg>
+      <span id="countdown-seconds" class="countdown-number">10</span>
+    </div>
+    <p class="countdown-label">Retrying connection...</p>
+    <p class="countdown-hint">Tap banner for troubleshooting steps</p>
+  </div>
+
   <!-- TROUBLESHOOTING PANEL: shown on connection failure -->
   <div id="troubleshoot-panel" class="hidden">
     <div class="troubleshoot-dialog">
@@ -38,14 +52,8 @@
         <li>Only after completing step 5, proceed with powering up the ATD like normal. After the startup countdown finishes, click the button below to attempt reconnection.</li>
       </ol>
       <p class="troubleshoot-support">If the failure persists, contact one-G support for further investigation.</p>
-      <div class="countdown-bar">
-        <div class="countdown-text">Retrying in <span id="countdown-seconds">30</span>s</div>
-        <div class="countdown-track">
-          <div id="countdown-progress" class="countdown-fill"></div>
-        </div>
-      </div>
       <div class="troubleshoot-actions">
-        <button id="btn-retry" class="btn btn-primary">Retry Now</button>
+        <button id="btn-retry" class="btn btn-primary">Retry Connection</button>
         <button id="btn-troubleshoot-close" class="btn btn-secondary">Dismiss</button>
       </div>
       <p class="troubleshoot-config-link">Or, edit the one-G IOS Kiosk address <a href="#" id="btn-open-config">configuration</a> (not necessary under normal circumstances)</p>
