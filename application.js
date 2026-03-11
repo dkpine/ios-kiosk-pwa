@@ -17,7 +17,7 @@
   var PROBE_TIMEOUT_MS = 8000;
   var MAX_AUTO_RETRIES = 1;
   var SUCCESS_BANNER_MS = 3000;
-  var APP_VERSION = '1.03';
+  var APP_VERSION = '1.04';
 
   // ---- DOM References ----
 
