@@ -408,10 +408,11 @@
   }
 
   function hideTroubleshootPanel() {
+    // Only trigger reconnection if the panel was actually visible
+    var wasVisible = !troubleshootPanel.classList.contains('hidden');
     troubleshootPanel.classList.add('hidden');
 
-    // Re-attempt connection whenever troubleshooting panel is dismissed
-    if (currentUrl) {
+    if (wasVisible && currentUrl) {
       retryCount = 0;
       navigateToUrl(currentUrl);
     }
