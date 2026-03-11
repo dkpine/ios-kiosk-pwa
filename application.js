@@ -171,10 +171,12 @@
 
   function initTheme() {
     var saved = localStorage.getItem(THEME_KEY);
-    if (saved === 'light') {
+    if (saved === 'dark') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      // Default is light
       document.documentElement.setAttribute('data-theme', 'light');
     }
-    // Default is dark (no attribute needed)
   }
 
   function toggleTheme() {
