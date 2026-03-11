@@ -26,7 +26,7 @@
   var SUCCESS_BANNER_MS = 2000;
   var COUNTDOWN_SCHEDULE = [10, 30, 60];
   var RING_CIRCUMFERENCE = 2 * Math.PI * 52;
-  var APP_VERSION = '3.1.0';
+  var APP_VERSION = '3.2.0';
   var DEVICES_JSON_URL = './devices.json';
 
   // ---- Extension Communication (via content script bridge) ----
@@ -39,16 +39,24 @@
   var pendingRequests = {};
   var requestCounter = 0;
 
+  var extensionVersion = '?';
+  var onExtensionReady = null; // late-arrival callback
+
   // Listen for replies from the content script
   window.addEventListener('message', function (event) {
     if (event.source !== window) return;
     var data = event.data;
     if (!data || !data.iosKioskReply) return;
 
-    // Handle unsolicited "extensionReady" announcement
+    // Handle unsolicited "extensionReady" announcement from content script
     if (data.type === 'extensionReady') {
       extensionAvailable = true;
       extensionVersion = data.version || '?';
+      // If the app already finished init without the extension, re-trigger
+      if (onExtensionReady) {
+        onExtensionReady();
+        onExtensionReady = null;
+      }
       return;
     }
 
@@ -61,8 +69,6 @@
     }
   });
 
-  var extensionVersion = '?';
-
   function sendToExtension(message, callback) {
     var id = ++requestCounter;
     message.iosKiosk = true;
@@ -70,31 +76,54 @@
 
     if (callback) {
       pendingRequests[id] = callback;
-      // Timeout: if no reply in 3 seconds, assume extension not available
+      // Timeout: if no reply in 2 seconds, callback with failure
       setTimeout(function () {
         if (pendingRequests[id]) {
           delete pendingRequests[id];
           callback({ ok: false, error: 'Extension timeout' });
         }
-      }, 3000);
+      }, 2000);
     }
 
     window.postMessage(message, '*');
   }
 
+  // Poll for extension with retries — in kiosk mode the page may load
+  // before the extension has initialized and injected its content script.
+  // We retry every 1.5s for up to ~20 seconds.
   function checkExtension(callback) {
-    // If the content script already announced itself, we're good
     if (extensionAvailable) {
       if (callback) callback(true, { ok: true, version: extensionVersion });
       return;
     }
 
-    // Otherwise send a ping and wait
-    sendToExtension({ type: 'ping' }, function (response) {
-      extensionAvailable = !!(response && response.ok);
-      if (response && response.version) extensionVersion = response.version;
-      if (callback) callback(extensionAvailable, response);
-    });
+    var attempts = 0;
+    var maxAttempts = 12; // ~20 seconds total (12 × ~1.5s per attempt)
+
+    function attempt() {
+      // Check if extensionReady arrived while we were waiting
+      if (extensionAvailable) {
+        if (callback) callback(true, { ok: true, version: extensionVersion });
+        return;
+      }
+
+      attempts++;
+      sendToExtension({ type: 'ping' }, function (response) {
+        if (response && response.ok) {
+          extensionAvailable = true;
+          if (response.version) extensionVersion = response.version;
+          if (callback) callback(true, response);
+        } else if (attempts < maxAttempts) {
+          // Retry after a delay
+          setTimeout(attempt, 1500);
+        } else {
+          // Give up, but still listen for late extensionReady
+          if (callback) callback(false, { ok: false, error: 'Extension not found after ' + attempts + ' attempts' });
+        }
+      });
+    }
+
+    attempt();
   }
 
   function proxyFetch(url, timeout, callback) {
@@ -204,30 +233,35 @@
       versionDisplay.textContent = 'v' + APP_VERSION;
     }
 
-    checkExtension(function (available, response) {
+    // Set up UI immediately (don't wait for extension)
+    initTheme();
+    setupWakeLock();
+    setupHotkey();
+    setupButtons();
+    loadDeviceDb();
+
+    function updateExtStatus(available, response) {
       if (extStatus) {
         if (available) {
           extStatus.textContent = 'Ext v' + (response.version || extensionVersion) + ' OK';
           extStatus.className = 'ext-status ext-ok';
         } else {
-          extStatus.textContent = 'Extension not detected';
+          extStatus.textContent = 'Waiting for extension...';
           extStatus.className = 'ext-status ext-missing';
         }
       }
+    }
 
-      initTheme();
-      setupWakeLock();
-      setupHotkey();
-      setupButtons();
-      loadDeviceDb();
+    function bootWithExtension() {
+      updateExtStatus(true, { version: extensionVersion });
 
       var savedUrl = localStorage.getItem(STORAGE_KEY);
-
       if (savedUrl) {
         currentUrl = savedUrl;
         updateCurrentUrlDisplay(savedUrl);
         navigateToUrl(savedUrl);
-      } else if (extensionAvailable) {
+      } else {
+        // Try migrating from extension storage
         sendToExtension({ type: 'storageGet', key: STORAGE_KEY }, function (resp) {
           if (resp && resp.ok && resp.value) {
             localStorage.setItem(STORAGE_KEY, resp.value);
@@ -238,8 +272,36 @@
             showConfigOverlay();
           }
         });
+      }
+    }
+
+    function bootWithoutExtension() {
+      updateExtStatus(false, {});
+
+      // Register a late-arrival callback: if the extension loads later,
+      // re-trigger the boot sequence with extension support
+      onExtensionReady = function () {
+        console.log('[Kiosk] Extension arrived late — re-initializing with proxy support');
+        bootWithExtension();
+      };
+
+      // Boot anyway with localStorage only (HTTP probing won't work)
+      var savedUrl = localStorage.getItem(STORAGE_KEY);
+      if (savedUrl) {
+        currentUrl = savedUrl;
+        updateCurrentUrlDisplay(savedUrl);
+        navigateToUrl(savedUrl);
       } else {
         showConfigOverlay();
+      }
+    }
+
+    // Poll for extension (retries for ~20 seconds in case of kiosk timing)
+    checkExtension(function (available) {
+      if (available) {
+        bootWithExtension();
+      } else {
+        bootWithoutExtension();
       }
     });
   }
