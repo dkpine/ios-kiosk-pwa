@@ -98,7 +98,11 @@
       return;
     }
 
+    // Try exact match first, then with 'N' prefix for numeric-leading entries
     var url = deviceDb[raw];
+    if (!url && /^[0-9]/.test(raw)) {
+      url = deviceDb['N' + raw];
+    }
     if (!url) {
       lookupMsg.textContent = 'Tail number "' + raw + '" not found in database.';
       lookupMsg.className = 'validation-msg error';
