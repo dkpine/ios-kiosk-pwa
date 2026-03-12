@@ -18,7 +18,8 @@
      2. localStorage breadcrumb — on next page load, detect a
         stale navigation stamp and skip straight to retry flow.
 
-   devices.json is fetched from the same GitHub Pages origin.
+   devices.enc (AES-256-GCM encrypted) is fetched from the same
+   GitHub Pages origin and decrypted client-side.
    ============================================================ */
 
 (function () {
@@ -34,7 +35,8 @@
   var RING_CIRCUMFERENCE = 2 * Math.PI * 52;
   var APP_VERSION = '3.5.0';
   var EXTENSION_ID = 'ffcoooniadfdngdceeiopbkdljcgnoha';
-  var DEVICES_JSON_URL = './devices.json';
+  var DEVICES_ENC_URL = './devices.enc';
+  var DEVICES_KEY_HEX = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
   var RECOVERY_KEY = 'kiosk_recovery';
   var NAV_TIMEOUT_MS = 8000;
 
@@ -504,10 +506,71 @@
   // ============================================================
 
   function loadDeviceDb() {
-    fetch(DEVICES_JSON_URL)
-      .then(function (res) { return res.json(); })
-      .then(function (data) { deviceDb = data; })
-      .catch(function () { deviceDb = null; });
+    // Fetch the AES-256-GCM encrypted device database and decrypt client-side.
+    // File format: [12-byte IV][16-byte auth tag][ciphertext]
+    fetch(DEVICES_ENC_URL)
+      .then(function (res) { return res.arrayBuffer(); })
+      .then(function (buf) {
+        var data = new Uint8Array(buf);
+        var iv = data.slice(0, 12);
+        var tag = data.slice(12, 28);
+        var ciphertext = data.slice(28);
+
+        // Combine ciphertext + tag (Web Crypto expects them concatenated)
+        var combined = new Uint8Array(ciphertext.length + tag.length);
+        combined.set(ciphertext);
+        combined.set(tag, ciphertext.length);
+
+        // Import the static key
+        var keyBytes = new Uint8Array(32);
+        for (var i = 0; i < 32; i++) {
+          keyBytes[i] = parseInt(DEVICES_KEY_HEX.substr(i * 2, 2), 16);
+        }
+
+        return crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt'])
+          .then(function (key) {
+            return crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv, tagLength: 128 }, key, combined);
+          });
+      })
+      .then(function (plainBuf) {
+        var json = new TextDecoder().decode(plainBuf);
+        deviceDb = JSON.parse(json);
+      })
+      .catch(function (err) {
+        console.error('[Kiosk] Failed to load device database:', err);
+        deviceDb = null;
+      });
+  }
+
+  /**
+   * Validate tail number format. Accepts:
+   *   N123XX, 123XX, 23XX  (N prefix optional, 2-5 digits, 0-2 letter suffix)
+   * Returns the normalized form (with N prefix) or null if invalid format.
+   */
+  function normalizeTailNumber(input) {
+    var raw = (input || '').trim().toUpperCase();
+    // Strip optional N prefix, require 2-5 digits, optional 1-2 letter suffix
+    var m = raw.match(/^N?(\d{2,5})([A-Z]{0,2})$/);
+    if (!m) return null;
+    return 'N' + m[1] + m[2];
+  }
+
+  /**
+   * Generate a deterministic honeypot URL from a tail number string.
+   * Produces a plausible-looking 10.x.x.x:3100 address that will never
+   * resolve, causing the kiosk to silently enter the failure/retry loop.
+   * Indistinguishable from a real IOS being offline.
+   */
+  function generateHoneypotUrl(tailStr) {
+    // Simple deterministic hash → three octets in 10.0.x.x range
+    var hash = 0;
+    for (var i = 0; i < tailStr.length; i++) {
+      hash = ((hash << 5) - hash + tailStr.charCodeAt(i)) | 0;
+    }
+    var a = Math.abs(hash >> 16) % 256;
+    var b = Math.abs(hash >> 8) % 256;
+    var c = Math.abs(hash) % 254 + 1; // 1-254, avoid .0 and .255
+    return 'http://10.' + a + '.' + b + '.' + c + ':3100/';
   }
 
   function handleLookup() {
@@ -521,31 +584,42 @@
       return;
     }
 
-    if (!deviceDb) {
-      lookupMsg.textContent = 'Device database not loaded. Try again in a moment.';
+    // Validate format: N + 2-5 digits + 0-2 letters (N prefix optional)
+    var normalized = normalizeTailNumber(raw);
+    if (!normalized) {
+      lookupMsg.textContent = 'Invalid tail number format.';
       lookupMsg.className = 'validation-msg error';
       return;
     }
 
-    var url = deviceDb[raw];
-    if (!url && /^[0-9]/.test(raw)) {
-      url = deviceDb['N' + raw];
-    }
-    if (!url) {
-      var match = raw.match(/^(N?)(\d+)(.*)$/i);
-      if (match) {
-        var numPart = match[2];
-        var suffix = match[3];
-        for (var padLen = numPart.length + 1; !url && padLen <= numPart.length + 2; padLen++) {
-          var padded = ('000' + numPart).slice(-padLen);
-          url = deviceDb['N' + padded + suffix];
+    // Look up in device database (try multiple padding variations)
+    var url = null;
+    if (deviceDb) {
+      url = deviceDb[raw] || deviceDb[normalized];
+      // Try without N prefix if started with digits
+      if (!url && /^[0-9]/.test(raw)) {
+        url = deviceDb['N' + raw];
+      }
+      // Try zero-padded variations
+      if (!url) {
+        var match = normalized.match(/^N(\d+)([A-Z]*)$/);
+        if (match) {
+          var numPart = match[1];
+          var suffix = match[2];
+          for (var padLen = numPart.length + 1; !url && padLen <= numPart.length + 2; padLen++) {
+            var padded = ('000' + numPart).slice(-padLen);
+            url = deviceDb['N' + padded + suffix];
+          }
         }
       }
     }
+
+    // Honeypot: unknown tail numbers get a deterministic dead-end URL.
+    // The kiosk silently enters the failure/retry loop — no "not found"
+    // message that would reveal whether a tail number is in the database.
     if (!url) {
-      lookupMsg.textContent = 'Tail number not found. Please verify and try again.';
-      lookupMsg.className = 'validation-msg error';
-      return;
+      url = generateHoneypotUrl(normalized);
+      console.log('[Kiosk] Tail number not in database — honeypot URL assigned');
     }
 
     closeDiagnostics();
@@ -1047,11 +1121,11 @@
     var tests = [];
 
     tests.push({
-      label: 'HTTPS fetch (devices.json)',
+      label: 'HTTPS fetch (devices.enc)',
       run: function (cb) {
         var controller = new AbortController();
         var t = setTimeout(function () { controller.abort(); }, 5000);
-        fetch('./devices.json', { signal: controller.signal })
+        fetch(DEVICES_ENC_URL, { signal: controller.signal })
           .then(function (r) { clearTimeout(t); cb('PASS', 'status=' + r.status); })
           .catch(function (e) { clearTimeout(t); cb('FAIL', e.message); });
       }
