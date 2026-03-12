@@ -153,10 +153,12 @@ html, body {
 
 #connection-status {
   background: rgba(218, 165, 32, 0.92);
+  cursor: pointer;
 }
 
 #connection-status.banner-success {
   background: rgba(39, 174, 96, 0.92);
+  cursor: default;
 }
 
 #connection-status.banner-error {

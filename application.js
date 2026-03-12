@@ -789,6 +789,10 @@
     cancelRetry();
     dismissTroubleshootPanel();
     showBanner('connecting', 'Connecting to one-G Instructor Operator Station...');
+    connectionStatus.onclick = function () {
+      cancelRetry();
+      showConfigOverlay();
+    };
     if (bgLogo) bgLogo.classList.remove('hidden');
     showPageThemeToggle();
 
