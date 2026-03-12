@@ -413,11 +413,23 @@
       updateExtStatus(true, { version: extensionVersion });
       clearRecoveryBreadcrumb(); // Extension handles its own watchdog
 
-      var savedUrl = recoveryUrl || localStorage.getItem(STORAGE_KEY);
+      // Prefer the stored configured URL over the recovery URL.
+      // Recovery just signals "IOS is down" — it may be a sub-page
+      // (e.g. /session/resetpin) that shouldn't overwrite the config.
+      var savedUrl = localStorage.getItem(STORAGE_KEY);
+      if (!savedUrl && recoveryUrl) {
+        // Extract root URL (origin + port) — recovery URL may be a sub-page
+        try {
+          var u = new URL(recoveryUrl);
+          savedUrl = u.origin + '/';
+        } catch (e) {
+          savedUrl = recoveryUrl;
+        }
+        localStorage.setItem(STORAGE_KEY, savedUrl);
+      }
       if (savedUrl) {
         if (recoveryUrl) {
           console.log('[Kiosk] Recovery (with extension): re-attempting ' + savedUrl);
-          localStorage.setItem(STORAGE_KEY, savedUrl);
         }
         currentUrl = savedUrl;
         updateCurrentUrlDisplay(savedUrl);
@@ -447,11 +459,20 @@
         bootWithExtension();
       };
 
-      var savedUrl = recoveryUrl || localStorage.getItem(STORAGE_KEY);
+      var savedUrl = localStorage.getItem(STORAGE_KEY);
+      if (!savedUrl && recoveryUrl) {
+        // Extract root URL (origin + port) — recovery URL may be a sub-page
+        try {
+          var u = new URL(recoveryUrl);
+          savedUrl = u.origin + '/';
+        } catch (e) {
+          savedUrl = recoveryUrl;
+        }
+        localStorage.setItem(STORAGE_KEY, savedUrl);
+      }
       if (savedUrl) {
         if (recoveryUrl) {
           console.log('[Kiosk] Recovery (no extension): re-attempting ' + savedUrl);
-          localStorage.setItem(STORAGE_KEY, savedUrl);
         }
         currentUrl = savedUrl;
         updateCurrentUrlDisplay(savedUrl);
