@@ -411,6 +411,7 @@
 
     function bootWithExtension() {
       updateExtStatus(true, { version: extensionVersion });
+      updatePortalStatus(portalToken ? true : false);
       clearRecoveryBreadcrumb(); // Extension handles its own watchdog
 
       // Prefer the stored configured URL over the recovery URL.
@@ -451,6 +452,7 @@
 
     function bootWithoutExtension() {
       updateExtStatus(false, {});
+      updatePortalStatus(portalToken ? true : false);
 
       // Register a late-arrival callback: if the extension loads later,
       // re-trigger the boot sequence with extension support

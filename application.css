@@ -718,7 +718,7 @@ kbd {
 }
 
 .portal-off {
-  color: var(--text-faint);
+  color: var(--danger);
 }
 
 .portal-pending {
