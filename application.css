@@ -269,9 +269,10 @@ html, body {
   z-index: 500;
   background: var(--troubleshoot-bg);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 24px;
 }
 
@@ -281,6 +282,7 @@ html, body {
   padding: 36px;
   max-width: 600px;
   width: 100%;
+  margin: auto 0;
   box-shadow: 0 20px 60px var(--shadow-dialog);
 }
 
@@ -353,8 +355,11 @@ html, body {
   z-index: 1000;
   background: var(--bg-overlay);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 24px;
 }
 
 .config-dialog {
@@ -363,6 +368,7 @@ html, body {
   padding: 40px;
   max-width: 560px;
   width: 90%;
+  margin: auto 0;
   box-shadow: 0 20px 60px var(--shadow-dialog);
   transition: max-width 0.35s ease, padding 0.35s ease;
 }
@@ -749,9 +755,13 @@ kbd {
 /* --- Responsive: small screens --- */
 
 @media (max-width: 480px) {
+  #config-overlay {
+    padding: 16px;
+  }
+
   .config-dialog {
     padding: 24px 20px;
-    width: 95%;
+    width: 100%;
     border-radius: 12px;
   }
 
@@ -798,12 +808,25 @@ kbd {
     text-align: center;
   }
 
+  #troubleshoot-panel {
+    padding: 16px;
+  }
+
   .troubleshoot-dialog {
-    padding: 24px 20px;
+    padding: 24px 16px;
+    border-radius: 12px;
   }
 
   .troubleshoot-dialog h2 {
     font-size: 18px;
+  }
+
+  .troubleshoot-steps {
+    padding-left: 20px;
+  }
+
+  .troubleshoot-steps li {
+    font-size: 14px;
   }
 
   .troubleshoot-actions {
@@ -818,6 +841,50 @@ kbd {
   .banner {
     font-size: 14px;
     padding: 10px 16px;
+  }
+
+  .countdown-ring-wrap {
+    width: 100px;
+    height: 100px;
+  }
+
+  .countdown-number {
+    font-size: 28px;
+  }
+
+  .countdown-label {
+    font-size: 14px;
+  }
+}
+
+/* --- Responsive: very short screens (landscape phones) --- */
+
+@media (max-height: 500px) {
+  #config-overlay,
+  #troubleshoot-panel {
+    padding: 12px;
+  }
+
+  .config-dialog {
+    padding: 20px 16px;
+  }
+
+  .config-header {
+    margin-bottom: 12px;
+  }
+
+  .config-logo {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 8px;
+  }
+
+  .config-header h1 {
+    font-size: 18px;
+  }
+
+  .troubleshoot-dialog {
+    padding: 20px 16px;
   }
 }
 
