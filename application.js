@@ -39,6 +39,9 @@
   var DEVICES_KEY_HEX = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
   var RECOVERY_KEY = 'kiosk_recovery';
   var NAV_TIMEOUT_MS = 8000;
+  var PORTAL_URL = 'https://portal.flyone-g.com';
+  var SITE_KEY_STORAGE = 'kiosk_site_key';
+  var PORTAL_TOKEN_STORAGE = 'kiosk_portal_token';
 
   // ---- Extension Communication ----
   //
@@ -254,9 +257,14 @@
   var btnDiag = document.getElementById('btn-diag');
   var diagResults = document.getElementById('diag-results');
   var extStatus = document.getElementById('ext-status');
+  var portalConfigPanel = document.getElementById('portal-config');
+  var siteKeyInput = document.getElementById('site-key-input');
+  var btnSaveSiteKey = document.getElementById('btn-save-site-key');
+  var portalStatus = document.getElementById('portal-status');
 
   // ---- State ----
 
+  var portalToken = null;
   var deviceDb = null;
   var currentUrl = null;
   var retryTimer = null;
@@ -373,6 +381,9 @@
     setupHotkey();
     setupButtons();
     loadDeviceDb();
+    portalAuth(function (token) {
+      updatePortalStatus(!!token);
+    });
 
     // ---- Recovery check ----
     // Two recovery sources:
@@ -542,6 +553,140 @@
       });
   }
 
+  // ============================================================
+  // Portal API — authenticate with one-G Portal and look up
+  // device IOS address by tail number. Falls back to the
+  // encrypted local device database if Portal is unreachable.
+  // ============================================================
+
+  /**
+   * Authenticate with the Portal using the configured site key
+   * (sim serial). Mirrors the IOS AccessInterface._getAuthToken flow.
+   * Caches token in localStorage for session persistence.
+   */
+  function portalAuth(callback) {
+    var siteKey = localStorage.getItem(SITE_KEY_STORAGE);
+    if (!siteKey) {
+      console.log('[Kiosk] No site key configured — skipping Portal auth');
+      if (callback) callback(null);
+      return;
+    }
+
+    // Use cached token if available
+    var cached = localStorage.getItem(PORTAL_TOKEN_STORAGE);
+    if (cached) {
+      portalToken = cached;
+      console.log('[Kiosk] Using cached Portal token');
+      if (callback) callback(cached);
+      return;
+    }
+
+    var controller = new AbortController();
+    var timeout = setTimeout(function () { controller.abort(); }, 5000);
+
+    fetch(PORTAL_URL + '/apiv2/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: siteKey }),
+      signal: controller.signal
+    })
+      .then(function (res) {
+        clearTimeout(timeout);
+        if (!res.ok) throw new Error('Portal auth failed (' + res.status + ')');
+        return res.json();
+      })
+      .then(function (data) {
+        if (data.token) {
+          portalToken = data.token;
+          localStorage.setItem(PORTAL_TOKEN_STORAGE, data.token);
+          console.log('[Kiosk] Portal auth successful');
+          if (callback) callback(data.token);
+        } else {
+          throw new Error('No token in Portal response');
+        }
+      })
+      .catch(function (err) {
+        clearTimeout(timeout);
+        console.warn('[Kiosk] Portal auth failed:', err.message);
+        portalToken = null;
+        if (callback) callback(null);
+      });
+  }
+
+  /**
+   * Look up a tail number via the Portal API.
+   * Returns the IOS URL on success, null on failure.
+   * callback(url) — url is string or null.
+   */
+  function portalLookup(tailNumber, callback) {
+    if (!portalToken) {
+      if (callback) callback(null);
+      return;
+    }
+
+    var controller = new AbortController();
+    var timeout = setTimeout(function () { controller.abort(); }, 5000);
+
+    fetch(PORTAL_URL + '/apiv2/kiosk/lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: portalToken, tail: tailNumber }),
+      signal: controller.signal
+    })
+      .then(function (res) {
+        clearTimeout(timeout);
+        if (res.status === 401) {
+          // Token expired — clear cache and retry auth next time
+          localStorage.removeItem(PORTAL_TOKEN_STORAGE);
+          portalToken = null;
+          throw new Error('Token expired');
+        }
+        if (!res.ok) throw new Error('Portal lookup failed (' + res.status + ')');
+        return res.json();
+      })
+      .then(function (data) {
+        if (data.url) {
+          console.log('[Kiosk] Portal lookup: ' + tailNumber + ' → ' + data.url);
+          if (callback) callback(data.url);
+        } else {
+          console.log('[Kiosk] Portal lookup: ' + tailNumber + ' — no match');
+          if (callback) callback(null);
+        }
+      })
+      .catch(function (err) {
+        clearTimeout(timeout);
+        console.warn('[Kiosk] Portal lookup failed:', err.message);
+        if (callback) callback(null);
+      });
+  }
+
+  /**
+   * Look up a tail number in the local encrypted device database.
+   * Returns the URL or null.
+   */
+  function localDbLookup(normalized, raw) {
+    if (!deviceDb) return null;
+
+    var url = deviceDb[raw] || deviceDb[normalized];
+    // Try without N prefix if started with digits
+    if (!url && /^[0-9]/.test(raw)) {
+      url = deviceDb['N' + raw];
+    }
+    // Try zero-padded variations
+    if (!url) {
+      var match = normalized.match(/^N(\d+)([A-Z]*)$/);
+      if (match) {
+        var numPart = match[1];
+        var suffix = match[2];
+        for (var padLen = numPart.length + 1; !url && padLen <= numPart.length + 2; padLen++) {
+          var padded = ('000' + numPart).slice(-padLen);
+          url = deviceDb['N' + padded + suffix];
+        }
+      }
+    }
+    return url || null;
+  }
+
   /**
    * Validate tail number format. Accepts:
    *   N123XX, 123XX, 23XX  (N prefix optional, 2-5 digits, 0-2 letter suffix)
@@ -592,40 +737,42 @@
       return;
     }
 
-    // Look up in device database (try multiple padding variations)
-    var url = null;
-    if (deviceDb) {
-      url = deviceDb[raw] || deviceDb[normalized];
-      // Try without N prefix if started with digits
-      if (!url && /^[0-9]/.test(raw)) {
-        url = deviceDb['N' + raw];
-      }
-      // Try zero-padded variations
+    // Show a brief "looking up" state
+    lookupMsg.textContent = 'Looking up ' + normalized + '...';
+    lookupMsg.className = 'validation-msg';
+
+    // Try Portal first, then fall back to local encrypted DB
+    function finishLookup(url) {
       if (!url) {
-        var match = normalized.match(/^N(\d+)([A-Z]*)$/);
-        if (match) {
-          var numPart = match[1];
-          var suffix = match[2];
-          for (var padLen = numPart.length + 1; !url && padLen <= numPart.length + 2; padLen++) {
-            var padded = ('000' + numPart).slice(-padLen);
-            url = deviceDb['N' + padded + suffix];
-          }
-        }
+        // Honeypot: unknown tail numbers get a deterministic dead-end URL.
+        // The kiosk silently enters the failure/retry loop — no "not found"
+        // message that would reveal whether a tail number is in the database.
+        url = generateHoneypotUrl(normalized);
+        console.log('[Kiosk] Tail number not in any source — honeypot URL assigned');
       }
+
+      lookupMsg.textContent = '';
+      closeDiagnostics();
+      addrInput.value = url;
+      saveUrl(url);
+      showLoadingAndConnect(url);
     }
 
-    // Honeypot: unknown tail numbers get a deterministic dead-end URL.
-    // The kiosk silently enters the failure/retry loop — no "not found"
-    // message that would reveal whether a tail number is in the database.
-    if (!url) {
-      url = generateHoneypotUrl(normalized);
-      console.log('[Kiosk] Tail number not in database — honeypot URL assigned');
+    if (portalToken) {
+      // Portal available — try authenticated lookup first
+      portalLookup(normalized, function (portalUrl) {
+        if (portalUrl) {
+          finishLookup(portalUrl);
+        } else {
+          // Portal didn't have it or failed — fall back to local DB
+          console.log('[Kiosk] Portal miss/fail — falling back to local DB');
+          finishLookup(localDbLookup(normalized, raw));
+        }
+      });
+    } else {
+      // No Portal token — use local DB directly
+      finishLookup(localDbLookup(normalized, raw));
     }
-
-    closeDiagnostics();
-    addrInput.value = url;
-    saveUrl(url);
-    showLoadingAndConnect(url);
   }
 
   function clearLookupMsg() {
@@ -1066,6 +1213,21 @@
     currentUrlDisplay.textContent = url || 'Not configured';
   }
 
+  function updatePortalStatus(connected) {
+    if (!portalStatus) return;
+    if (connected === null) {
+      portalStatus.textContent = 'Authenticating...';
+      portalStatus.className = 'portal-status portal-pending';
+    } else if (connected) {
+      portalStatus.textContent = 'Connected to Portal';
+      portalStatus.className = 'portal-status portal-ok';
+    } else {
+      var hasKey = !!localStorage.getItem(SITE_KEY_STORAGE);
+      portalStatus.textContent = hasKey ? 'Portal unreachable — using local database' : 'No site key configured';
+      portalStatus.className = 'portal-status portal-off';
+    }
+  }
+
   // ============================================================
   // Hotkey: Ctrl+Shift+O
   // ============================================================
@@ -1119,6 +1281,7 @@
     lines.push('<span class="diag-info">Extension: ' + (extensionAvailable ? 'yes (v' + extensionVersion + ') via ' + (useDirectChannel ? 'direct' : 'bridge') : 'NO \u2014 HTTP probing disabled') + '</span>');
     lines.push('<span class="diag-info">chrome.runtime available: ' + (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage ? 'yes' : 'no') + '</span>');
     lines.push('<span class="diag-info">App version: v' + APP_VERSION + '</span>');
+    lines.push('<span class="diag-info">Portal: ' + (portalToken ? 'authenticated' : 'not connected') + ' (site key: ' + (localStorage.getItem(SITE_KEY_STORAGE) || 'none') + ')</span>');
     lines.push('<span class="diag-info">Configured URL: ' + (currentUrl || 'none') + '</span>');
     lines.push('');
 
@@ -1228,9 +1391,42 @@
           devTapCount = 0;
           if (devTapTimer) { clearTimeout(devTapTimer); devTapTimer = null; }
           var footer = versionDisplay.closest('.config-footer');
-          if (footer) footer.classList.toggle('dev-mode');
+          if (footer) {
+            footer.classList.toggle('dev-mode');
+            // Show/hide portal config panel alongside dev mode
+            if (portalConfigPanel) {
+              portalConfigPanel.classList.toggle('hidden', !footer.classList.contains('dev-mode'));
+            }
+          }
         }
       });
+    }
+
+    // Site key save button
+    if (btnSaveSiteKey) {
+      btnSaveSiteKey.addEventListener('click', function () {
+        var key = (siteKeyInput.value || '').trim();
+        if (!key) {
+          localStorage.removeItem(SITE_KEY_STORAGE);
+          localStorage.removeItem(PORTAL_TOKEN_STORAGE);
+          portalToken = null;
+          updatePortalStatus(false);
+          return;
+        }
+        localStorage.setItem(SITE_KEY_STORAGE, key);
+        localStorage.removeItem(PORTAL_TOKEN_STORAGE); // Force re-auth
+        portalToken = null;
+        updatePortalStatus(null); // null = "authenticating..."
+        portalAuth(function (token) {
+          updatePortalStatus(!!token);
+        });
+      });
+    }
+
+    // Pre-fill site key input from storage
+    if (siteKeyInput) {
+      var savedKey = localStorage.getItem(SITE_KEY_STORAGE);
+      if (savedKey) siteKeyInput.value = savedKey;
     }
 
     btnTheme.addEventListener('click', toggleTheme);

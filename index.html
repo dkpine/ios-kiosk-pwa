@@ -119,6 +119,18 @@
 
       <div id="diag-results" class="diag-results hidden"></div>
 
+      <!-- Portal config (dev-mode only) -->
+      <div id="portal-config" class="portal-config hidden">
+        <label for="site-key-input">Site Key (sim serial)</label>
+        <div class="portal-config-row">
+          <input type="text" id="site-key-input"
+                 placeholder="e.g. 111GX"
+                 autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button id="btn-save-site-key" class="btn btn-primary btn-sm">Save</button>
+        </div>
+        <div id="portal-status" class="portal-status"></div>
+      </div>
+
       <div class="config-footer">
         <button id="btn-theme" class="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle theme">
           <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
