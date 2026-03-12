@@ -662,6 +662,7 @@ kbd {
 .config-footer {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 16px;
   padding-top: 12px;
@@ -692,7 +693,10 @@ kbd {
 }
 
 .config-footer.dev-mode .ext-status {
-  display: inline-block;
+  display: block;
+  width: 100%;
+  order: 10;
+  text-align: center;
 }
 
 .config-footer.dev-mode #version-display {
