@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Instructor Station Kiosk</title>
+  <title>1G-IOS Kiosk Config</title>
   <meta name="theme-color" content="#1a1a2e">
   <link rel="icon" type="image/png" sizes="128x128" href="icons/icon-128.png">
   <link rel="stylesheet" href="application.css">
@@ -23,7 +23,7 @@
 
   <!-- CONNECTION STATUS BANNER -->
   <div id="connection-status" class="banner hidden">
-    <span id="status-message">Connecting to Instructor Station...</span>
+    <span id="status-message">Connecting to one-G Instructor Operator Station...</span>
   </div>
 
   <!-- COUNTDOWN OVERLAY: centered timer shown during auto-retry -->
@@ -68,7 +68,7 @@
     <div class="config-dialog">
       <div class="config-header">
         <img src="icons/icon-128.png" alt="one-G" class="config-logo">
-        <h1>Instructor Station Kiosk</h1>
+        <h1>1G-IOS Kiosk Config</h1>
         <p class="config-subtitle">one-G simulation</p>
       </div>
 
@@ -84,7 +84,7 @@
         <label for="tail-input">Tail Number</label>
         <div class="lookup-row">
           <input type="text" id="tail-input"
-                 placeholder="e.g. N41GT"
+                 placeholder="e.g. N321GX"
                  autocomplete="off" autocapitalize="characters" spellcheck="false">
           <button id="btn-lookup" class="btn btn-primary">Look Up</button>
         </div>
@@ -140,7 +140,7 @@
         </button>
         <span id="ext-status" class="ext-status"></span>
         <button id="btn-diag" class="diag-toggle" title="Run network diagnostics" aria-label="Run diagnostics">diag</button>
-        <span id="version-display">v3.5.0</span>
+        <span id="version-display">v3.5.1</span>
       </div>
     </div>
   </div>

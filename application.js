@@ -1,6 +1,6 @@
 /* ============================================================
    Instructor Station Kiosk - GitHub Pages App
-   Core application logic — v3.5.0
+   Core application logic — v3.5.1
 
    This runs from the GitHub Pages HTTPS origin. HTTP fetch
    probes to private-IP IOS servers are proxied through the
@@ -33,7 +33,7 @@
   var SUCCESS_BANNER_MS = 2000;
   var COUNTDOWN_SCHEDULE = [10, 30, 60];
   var RING_CIRCUMFERENCE = 2 * Math.PI * 52;
-  var APP_VERSION = '3.5.0';
+  var APP_VERSION = '3.5.1';
   var EXTENSION_ID = 'ffcoooniadfdngdceeiopbkdljcgnoha';
   var DEVICES_ENC_URL = './devices.enc';
   var DEVICES_KEY_HEX = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
@@ -788,7 +788,7 @@
   function navigateToUrl(url) {
     cancelRetry();
     dismissTroubleshootPanel();
-    showBanner('connecting', 'Connecting to Instructor Station...');
+    showBanner('connecting', 'Connecting to one-G Instructor Operator Station...');
     if (bgLogo) bgLogo.classList.remove('hidden');
     showPageThemeToggle();
 
@@ -844,7 +844,7 @@
     if (bgLogo) bgLogo.classList.remove('hidden');
     hidePageThemeToggle();
 
-    showBanner('success', 'Connected \u2014 launching Instructor Station...');
+    showBanner('success', 'Connected \u2014 Launching one-G Instructor Operator Station...');
 
     if (successTimer) clearTimeout(successTimer);
     successTimer = setTimeout(function () {
