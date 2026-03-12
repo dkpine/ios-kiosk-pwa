@@ -1218,10 +1218,15 @@
       var devTapTimer = null;
       versionDisplay.addEventListener('click', function () {
         devTapCount++;
-        if (devTapTimer) clearTimeout(devTapTimer);
-        devTapTimer = setTimeout(function () { devTapCount = 0; }, 2000);
+        if (!devTapTimer) {
+          var footer = versionDisplay.closest('.config-footer');
+          var isDevMode = footer && footer.classList.contains('dev-mode');
+          var window_ms = isDevMode ? 5000 : 3000;
+          devTapTimer = setTimeout(function () { devTapCount = 0; devTapTimer = null; }, window_ms);
+        }
         if (devTapCount >= 7) {
           devTapCount = 0;
+          if (devTapTimer) { clearTimeout(devTapTimer); devTapTimer = null; }
           var footer = versionDisplay.closest('.config-footer');
           if (footer) footer.classList.toggle('dev-mode');
         }
