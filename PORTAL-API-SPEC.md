@@ -12,14 +12,16 @@ If the Portal is unreachable, the kiosk falls back to an encrypted local device 
 
 ## Serial Format and Leading Zeros
 
-The kiosk strips the FAA `N` prefix and sends the raw serial. Examples:
+The kiosk strips any `N` or `SIM-` prefix and sends the raw serial. Examples:
 
 | User enters | Kiosk sends |
 |------------|-------------|
+| 321GX      | 321GX       |
 | N321GX     | 321GX       |
+| SIM-321GX  | 321GX       |
 | N021GF     | 021GF       |
 | 21GF       | 21GF        |
-| N41GT      | 41GT        |
+| SIM-41GT   | 41GT        |
 
 **Important:** Some serials have leading zeros (e.g., `021GF`) and some don't (e.g., `41GT`). The Portal should normalize by stripping leading zeros before comparing, so that `021GF` and `21GF` both match the same device. Store whichever form is canonical in the database, but match flexibly.
 
@@ -121,6 +123,19 @@ The `/apiv2/kiosk/lookup` endpoint maps `serial → iosLocalUrl` directly.
 5. If Portal is unreachable at any step → falls back to local encrypted DB
 6. If neither source has the serial → honeypot URL (silent failure loop)
 ```
+
+## Roadmap: Removing the Local Device Database
+
+The encrypted local device database (`devices.enc`) is a temporary fallback while Portal integration is being built and validated. Once Portal auth and lookup are confirmed working reliably in production, the plan is to **remove `devices.enc` entirely** and rely solely on the Portal as the single source of truth for device lookups — the same model the IOS itself uses.
+
+At that point:
+- `devices.enc`, `devices.json`, and `encrypt-devices.js` will be removed from the repo
+- The local decryption code and `localDbLookup()` fallback will be stripped from the kiosk app
+- All fleet data will live exclusively in the Portal database
+- Adding, removing, or reassigning a sim will take effect immediately with no kiosk redeployment
+- The honeypot behavior for unknown serials will remain (Portal returns `"url": null`, kiosk generates a dead-end address)
+
+The only exception may be a hardcoded local/test entry (similar to how the IOS accepts one hardcoded `localUser` account for offline operation), but that is TBD based on field requirements.
 
 ## Testing
 
