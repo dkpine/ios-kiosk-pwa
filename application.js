@@ -373,27 +373,22 @@
     loadDeviceDb();
 
     // ---- Recovery check ----
-    // If we recently tried to navigate to an IOS URL and ended up
-    // back on this page, the server may have been unreachable. Rather
-    // than declaring failure (the server may have recovered during a
-    // reboot), just re-attempt the connection — the dead man's switch
-    // will catch it if the server is still down.
+    // Two recovery sources:
+    //   1. localStorage breadcrumb (set before blind navigation without extension)
+    //   2. ?recovery= query param (set by extension service worker when
+    //      webNavigation.onErrorOccurred fires for an IOS URL)
     var recoveryUrl = checkRecoveryState();
-    if (recoveryUrl) {
-      console.log('[Kiosk] Recovery: re-attempting connection to ' + recoveryUrl);
-      currentUrl = recoveryUrl;
-      localStorage.setItem(STORAGE_KEY, recoveryUrl);
-      updateCurrentUrlDisplay(recoveryUrl);
-      navigateToUrl(recoveryUrl);
-
-      // Still poll for extension in background
-      checkExtension(function (available) {
-        if (available && extStatus) {
-          extStatus.textContent = 'Ext v' + extensionVersion + ' OK';
-          extStatus.className = 'ext-status ext-ok';
+    if (!recoveryUrl) {
+      try {
+        var params = new URLSearchParams(window.location.search);
+        var extRecovery = params.get('recovery');
+        if (extRecovery) {
+          console.log('[Kiosk] Recovery URL from extension: ' + extRecovery);
+          recoveryUrl = extRecovery;
+          // Clean the query string so refreshes don't loop
+          history.replaceState(null, '', window.location.pathname);
         }
-      });
-      return;
+      } catch (e) {}
     }
 
     function updateExtStatus(available, response) {
@@ -412,8 +407,12 @@
       updateExtStatus(true, { version: extensionVersion });
       clearRecoveryBreadcrumb(); // Extension handles its own watchdog
 
-      var savedUrl = localStorage.getItem(STORAGE_KEY);
+      var savedUrl = recoveryUrl || localStorage.getItem(STORAGE_KEY);
       if (savedUrl) {
+        if (recoveryUrl) {
+          console.log('[Kiosk] Recovery (with extension): re-attempting ' + savedUrl);
+          localStorage.setItem(STORAGE_KEY, savedUrl);
+        }
         currentUrl = savedUrl;
         updateCurrentUrlDisplay(savedUrl);
         navigateToUrl(savedUrl);
@@ -442,9 +441,12 @@
         bootWithExtension();
       };
 
-      // Boot anyway with localStorage only (HTTP probing won't work)
-      var savedUrl = localStorage.getItem(STORAGE_KEY);
+      var savedUrl = recoveryUrl || localStorage.getItem(STORAGE_KEY);
       if (savedUrl) {
+        if (recoveryUrl) {
+          console.log('[Kiosk] Recovery (no extension): re-attempting ' + savedUrl);
+          localStorage.setItem(STORAGE_KEY, savedUrl);
+        }
         currentUrl = savedUrl;
         updateCurrentUrlDisplay(savedUrl);
         navigateToUrl(savedUrl);
@@ -453,22 +455,48 @@
       }
     }
 
-    // Boot immediately without waiting for extension.
-    // The extension poll continues in the background — if it arrives
-    // late, the onExtensionReady callback will re-trigger with proxy support.
-    bootWithoutExtension();
+    // ---- Boot sequence ----
+    // Wait briefly for extension detection before choosing navigation path.
+    // The content script "extensionReady" message typically arrives within
+    // ~1s, and the explicit checkExtension() poll completes in ~1.8s. We
+    // allow up to 2.5s before falling back to the no-extension path.
+    //
+    // IMPORTANT: Previously, bootWithoutExtension() fired at 0ms and
+    // navigated blind after 800ms — but extension detection takes ~1.8s,
+    // so the extension was never detected in time. The page navigated away
+    // to Chrome's "refused to connect" error even with the extension loaded.
+    // This 2.5s wait window fixes that race condition.
+    var EXTENSION_WAIT_MS = 2500;
+    var bootDecided = false;
 
-    // Keep polling for extension in background (if it eventually loads,
-    // the late-arrival callback registered in bootWithoutExtension fires)
-    checkExtension(function (available) {
-      if (available) {
-        updateExtStatus(true, { version: extensionVersion });
-        // If we haven't navigated away yet, re-boot with extension
-        if (!document.hidden) {
-          bootWithExtension();
-        }
+    function doBoot(withExtension) {
+      if (bootDecided) return;
+      bootDecided = true;
+      console.log('[Kiosk] Boot decision: ' + (withExtension ? 'with' : 'without') + ' extension');
+      if (withExtension) {
+        bootWithExtension();
+      } else {
+        bootWithoutExtension();
       }
+    }
+
+    // Fastest path: content script sends "extensionReady" via postMessage
+    onExtensionReady = function () {
+      console.log('[Kiosk] Extension detected during boot wait (content script ready)');
+      doBoot(true);
+    };
+
+    // Also actively poll for extension (catches externally_connectable path)
+    checkExtension(function (available) {
+      if (available) doBoot(true);
     });
+
+    // Fallback: if extension not found within the wait window, boot without it.
+    // bootWithoutExtension() registers its own late-arrival callback so if the
+    // extension shows up after we've started navigating, it can still re-trigger.
+    setTimeout(function () {
+      doBoot(false);
+    }, EXTENSION_WAIT_MS);
   }
 
   // ============================================================
@@ -738,7 +766,8 @@
   function handleConnectionSuccess(url) {
     stopCountdown();
     retryCount = 0;
-    if (bgLogo) bgLogo.classList.add('hidden');
+    // Keep the one-G logo + loading dots visible during success banner
+    if (bgLogo) bgLogo.classList.remove('hidden');
     hidePageThemeToggle();
 
     showBanner('success', 'Connected \u2014 launching Instructor Station...');
@@ -1212,5 +1241,17 @@
   } else {
     init();
   }
+
+  // ---- Back-button / bfcache recovery ----
+  // When the user navigates back from the IOS page, Chrome may restore
+  // this page from the back-forward cache with stale JS state (e.g. the
+  // green "Connected" banner stuck with no timer running). Detect this
+  // and re-trigger the connection flow.
+  window.addEventListener('pageshow', function (event) {
+    if (event.persisted && currentUrl) {
+      console.log('[Kiosk] Page restored from bfcache — re-connecting to ' + currentUrl);
+      navigateToUrl(currentUrl);
+    }
+  });
 
 })();
