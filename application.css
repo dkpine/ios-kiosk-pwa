@@ -692,7 +692,11 @@ kbd {
   margin-left: auto;
 }
 
-.config-footer.dev-mode .ext-status,
+.config-footer.dev-mode .ext-status {
+  display: inline-block;
+  margin-left: auto;
+}
+
 .config-footer.dev-mode .portal-status {
   display: inline-block;
 }
