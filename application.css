@@ -660,13 +660,34 @@ kbd {
   border-top: 1px solid var(--border-subtle);
 }
 
-.config-footer .theme-toggle {
-  margin-left: auto;
+/* Diag button and ext-status hidden until dev mode is unlocked */
+.config-footer .diag-toggle,
+.config-footer .ext-status {
+  display: none;
 }
 
+/* Version always far right */
 #version-display {
   font-size: 12px;
   color: var(--text-faint);
+  margin-left: auto;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Dev mode: reveal diag + ext-status */
+.config-footer.dev-mode .diag-toggle {
+  display: inline-flex;
+  margin-left: auto;
+}
+
+.config-footer.dev-mode .ext-status {
+  display: inline-block;
+}
+
+.config-footer.dev-mode #version-display {
   margin-left: 4px;
 }
 

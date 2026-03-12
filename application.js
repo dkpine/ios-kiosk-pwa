@@ -753,11 +753,7 @@
 
   function handleConnectionFailure(url, err) {
     if (bgLogo) bgLogo.classList.add('hidden');
-    var msg = 'Connection failed';
-    if (err && err.message) {
-      msg += ' (' + err.message + ')';
-    }
-    msg += ' \u2014 tap for troubleshooting steps';
+    var msg = 'Connection failed \u2014 tap for troubleshooting steps';
     showBanner('error', msg);
     connectionStatus.onclick = function () {
       showTroubleshootPanel();
@@ -1107,6 +1103,22 @@
 
     if (btnDiag) {
       btnDiag.addEventListener('click', toggleDiagnostics);
+    }
+
+    // Easter egg: tap version number 7 times to reveal dev tools
+    if (versionDisplay) {
+      var devTapCount = 0;
+      var devTapTimer = null;
+      versionDisplay.addEventListener('click', function () {
+        devTapCount++;
+        if (devTapTimer) clearTimeout(devTapTimer);
+        devTapTimer = setTimeout(function () { devTapCount = 0; }, 2000);
+        if (devTapCount >= 7) {
+          devTapCount = 0;
+          var footer = versionDisplay.closest('.config-footer');
+          if (footer) footer.classList.toggle('dev-mode');
+        }
+      });
     }
 
     btnTheme.addEventListener('click', toggleTheme);
