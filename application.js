@@ -40,7 +40,6 @@
   var RECOVERY_KEY = 'kiosk_recovery';
   var NAV_TIMEOUT_MS = 8000;
   var PORTAL_URL = 'https://portal.flyone-g.com';
-  var SITE_KEY_STORAGE = 'kiosk_site_key';
   var PORTAL_TOKEN_STORAGE = 'kiosk_portal_token';
 
   // ---- Extension Communication ----
@@ -257,9 +256,6 @@
   var btnDiag = document.getElementById('btn-diag');
   var diagResults = document.getElementById('diag-results');
   var extStatus = document.getElementById('ext-status');
-  var portalConfigPanel = document.getElementById('portal-config');
-  var siteKeyInput = document.getElementById('site-key-input');
-  var btnSaveSiteKey = document.getElementById('btn-save-site-key');
   var portalStatus = document.getElementById('portal-status');
 
   // ---- State ----
@@ -381,9 +377,6 @@
     setupHotkey();
     setupButtons();
     loadDeviceDb();
-    portalAuth(function (token) {
-      updatePortalStatus(!!token);
-    });
 
     // ---- Recovery check ----
     // Two recovery sources:
@@ -560,14 +553,20 @@
   // ============================================================
 
   /**
-   * Authenticate with the Portal using the configured site key
-   * (sim serial). Mirrors the IOS AccessInterface._getAuthToken flow.
-   * Caches token in localStorage for session persistence.
+   * Strip the N prefix from a normalized tail number to get the
+   * sim serial form used by the Portal (e.g. "N321GX" → "321GX").
    */
-  function portalAuth(callback) {
-    var siteKey = localStorage.getItem(SITE_KEY_STORAGE);
-    if (!siteKey) {
-      console.log('[Kiosk] No site key configured — skipping Portal auth');
+  function tailToSerial(normalized) {
+    return normalized.replace(/^N/i, '');
+  }
+
+  /**
+   * Authenticate with the Portal using the sim serial (tail number
+   * minus the N prefix). Mirrors the IOS AccessInterface._getAuthToken
+   * flow. Caches token in localStorage for session persistence.
+   */
+  function portalAuth(tailNumber, callback) {
+    if (!tailNumber) {
       if (callback) callback(null);
       return;
     }
@@ -581,13 +580,14 @@
       return;
     }
 
+    var serial = tailToSerial(tailNumber);
     var controller = new AbortController();
     var timeout = setTimeout(function () { controller.abort(); }, 5000);
 
     fetch(PORTAL_URL + '/apiv2/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: siteKey }),
+      body: JSON.stringify({ id: serial }),
       signal: controller.signal
     })
       .then(function (res) {
@@ -599,7 +599,7 @@
         if (data.token) {
           portalToken = data.token;
           localStorage.setItem(PORTAL_TOKEN_STORAGE, data.token);
-          console.log('[Kiosk] Portal auth successful');
+          console.log('[Kiosk] Portal auth successful for ' + serial);
           if (callback) callback(data.token);
         } else {
           throw new Error('No token in Portal response');
@@ -624,13 +624,14 @@
       return;
     }
 
+    var serial = tailToSerial(tailNumber);
     var controller = new AbortController();
     var timeout = setTimeout(function () { controller.abort(); }, 5000);
 
     fetch(PORTAL_URL + '/apiv2/kiosk/lookup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: portalToken, tail: tailNumber }),
+      body: JSON.stringify({ token: portalToken, serial: serial }),
       signal: controller.signal
     })
       .then(function (res) {
@@ -646,10 +647,10 @@
       })
       .then(function (data) {
         if (data.url) {
-          console.log('[Kiosk] Portal lookup: ' + tailNumber + ' → ' + data.url);
+          console.log('[Kiosk] Portal lookup: ' + serial + ' → ' + data.url);
           if (callback) callback(data.url);
         } else {
-          console.log('[Kiosk] Portal lookup: ' + tailNumber + ' — no match');
+          console.log('[Kiosk] Portal lookup: ' + serial + ' — no match');
           if (callback) callback(null);
         }
       })
@@ -688,14 +689,17 @@
   }
 
   /**
-   * Validate tail number format. Accepts:
-   *   N123XX, 123XX, 23XX  (N prefix optional, 2-5 digits, 0-2 letter suffix)
+   * Validate tail number / serial format. Accepts:
+   *   N123XX, SIM-123XX, 123XX, 23XX
+   *   (N or SIM- prefix optional, 2-5 digits, 0-2 letter suffix)
    * Returns the normalized form (with N prefix) or null if invalid format.
    */
   function normalizeTailNumber(input) {
     var raw = (input || '').trim().toUpperCase();
-    // Strip optional N prefix, require 2-5 digits, optional 1-2 letter suffix
-    var m = raw.match(/^N?(\d{2,5})([A-Z]{0,2})$/);
+    // Strip optional N or SIM- prefix
+    raw = raw.replace(/^(SIM-|N)/i, '');
+    // Require 2-5 digits, optional 1-2 letter suffix
+    var m = raw.match(/^(\d{2,5})([A-Z]{0,2})$/);
     if (!m) return null;
     return 'N' + m[1] + m[2];
   }
@@ -758,21 +762,30 @@
       showLoadingAndConnect(url);
     }
 
-    if (portalToken) {
-      // Portal available — try authenticated lookup first
-      portalLookup(normalized, function (portalUrl) {
-        if (portalUrl) {
-          finishLookup(portalUrl);
-        } else {
-          // Portal didn't have it or failed — fall back to local DB
-          console.log('[Kiosk] Portal miss/fail — falling back to local DB');
+    // Try Portal (auth + lookup), then fall back to local encrypted DB.
+    // The tail number IS the device identifier (serial), so we auth with it.
+    function tryPortalThenLocal() {
+      portalAuth(normalized, function (token) {
+        if (!token) {
+          // Portal unreachable — use local DB
+          updatePortalStatus(false);
           finishLookup(localDbLookup(normalized, raw));
+          return;
         }
+        updatePortalStatus(true);
+        portalLookup(normalized, function (portalUrl) {
+          if (portalUrl) {
+            finishLookup(portalUrl);
+          } else {
+            // Portal didn't have it or failed — fall back to local DB
+            console.log('[Kiosk] Portal miss/fail — falling back to local DB');
+            finishLookup(localDbLookup(normalized, raw));
+          }
+        });
       });
-    } else {
-      // No Portal token — use local DB directly
-      finishLookup(localDbLookup(normalized, raw));
     }
+
+    tryPortalThenLocal();
   }
 
   function clearLookupMsg() {
@@ -1219,11 +1232,10 @@
       portalStatus.textContent = 'Authenticating...';
       portalStatus.className = 'portal-status portal-pending';
     } else if (connected) {
-      portalStatus.textContent = 'Connected to Portal';
+      portalStatus.textContent = 'Portal OK';
       portalStatus.className = 'portal-status portal-ok';
     } else {
-      var hasKey = !!localStorage.getItem(SITE_KEY_STORAGE);
-      portalStatus.textContent = hasKey ? 'Portal unreachable — using local database' : 'No site key configured';
+      portalStatus.textContent = 'Portal offline';
       portalStatus.className = 'portal-status portal-off';
     }
   }
@@ -1281,7 +1293,7 @@
     lines.push('<span class="diag-info">Extension: ' + (extensionAvailable ? 'yes (v' + extensionVersion + ') via ' + (useDirectChannel ? 'direct' : 'bridge') : 'NO \u2014 HTTP probing disabled') + '</span>');
     lines.push('<span class="diag-info">chrome.runtime available: ' + (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage ? 'yes' : 'no') + '</span>');
     lines.push('<span class="diag-info">App version: v' + APP_VERSION + '</span>');
-    lines.push('<span class="diag-info">Portal: ' + (portalToken ? 'authenticated' : 'not connected') + ' (site key: ' + (localStorage.getItem(SITE_KEY_STORAGE) || 'none') + ')</span>');
+    lines.push('<span class="diag-info">Portal: ' + (portalToken ? 'authenticated' : 'not connected') + '</span>');
     lines.push('<span class="diag-info">Configured URL: ' + (currentUrl || 'none') + '</span>');
     lines.push('');
 
@@ -1391,42 +1403,9 @@
           devTapCount = 0;
           if (devTapTimer) { clearTimeout(devTapTimer); devTapTimer = null; }
           var footer = versionDisplay.closest('.config-footer');
-          if (footer) {
-            footer.classList.toggle('dev-mode');
-            // Show/hide portal config panel alongside dev mode
-            if (portalConfigPanel) {
-              portalConfigPanel.classList.toggle('hidden', !footer.classList.contains('dev-mode'));
-            }
-          }
+          if (footer) footer.classList.toggle('dev-mode');
         }
       });
-    }
-
-    // Site key save button
-    if (btnSaveSiteKey) {
-      btnSaveSiteKey.addEventListener('click', function () {
-        var key = (siteKeyInput.value || '').trim();
-        if (!key) {
-          localStorage.removeItem(SITE_KEY_STORAGE);
-          localStorage.removeItem(PORTAL_TOKEN_STORAGE);
-          portalToken = null;
-          updatePortalStatus(false);
-          return;
-        }
-        localStorage.setItem(SITE_KEY_STORAGE, key);
-        localStorage.removeItem(PORTAL_TOKEN_STORAGE); // Force re-auth
-        portalToken = null;
-        updatePortalStatus(null); // null = "authenticating..."
-        portalAuth(function (token) {
-          updatePortalStatus(!!token);
-        });
-      });
-    }
-
-    // Pre-fill site key input from storage
-    if (siteKeyInput) {
-      var savedKey = localStorage.getItem(SITE_KEY_STORAGE);
-      if (savedKey) siteKeyInput.value = savedKey;
     }
 
     btnTheme.addEventListener('click', toggleTheme);

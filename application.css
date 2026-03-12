@@ -692,54 +692,21 @@ kbd {
   margin-left: auto;
 }
 
-.config-footer.dev-mode .ext-status {
-  display: block;
-  width: 100%;
-  order: 10;
-  text-align: center;
+.config-footer.dev-mode .ext-status,
+.config-footer.dev-mode .portal-status {
+  display: inline-block;
 }
 
 .config-footer.dev-mode #version-display {
   margin-left: 4px;
 }
 
-/* --- Portal Config (dev-mode panel) --- */
-
-.portal-config {
-  margin-top: 12px;
-  padding: 12px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  background: var(--bg-secondary, rgba(0,0,0,0.03));
-}
-
-.portal-config label {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 4px;
-  color: var(--text-secondary);
-}
-
-.portal-config-row {
-  display: flex;
-  gap: 6px;
-}
-
-.portal-config-row input {
-  flex: 1;
-  font-size: 13px;
-  padding: 6px 8px;
-}
-
-.btn-sm {
-  padding: 6px 12px;
-  font-size: 12px;
-}
+/* --- Portal Status --- */
 
 .portal-status {
   font-size: 11px;
-  margin-top: 6px;
+  text-align: center;
+  display: none;
 }
 
 .portal-ok {
@@ -805,6 +772,7 @@ kbd {
 
 .config-dialog.loading-state .config-header,
 .config-dialog.loading-state .config-body,
+.config-dialog.loading-state .diag-results,
 .config-dialog.loading-state .config-footer {
   display: none;
 }

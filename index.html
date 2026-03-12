@@ -84,7 +84,7 @@
         <label for="tail-input">Tail Number</label>
         <div class="lookup-row">
           <input type="text" id="tail-input"
-                 placeholder="e.g. N321GX"
+                 placeholder="e.g. 321GX"
                  autocomplete="off" autocapitalize="characters" spellcheck="false">
           <button id="btn-lookup" class="btn btn-primary">Look Up</button>
         </div>
@@ -119,18 +119,6 @@
 
       <div id="diag-results" class="diag-results hidden"></div>
 
-      <!-- Portal config (dev-mode only) -->
-      <div id="portal-config" class="portal-config hidden">
-        <label for="site-key-input">Site Key (sim serial)</label>
-        <div class="portal-config-row">
-          <input type="text" id="site-key-input"
-                 placeholder="e.g. 111GX"
-                 autocomplete="off" autocapitalize="characters" spellcheck="false">
-          <button id="btn-save-site-key" class="btn btn-primary btn-sm">Save</button>
-        </div>
-        <div id="portal-status" class="portal-status"></div>
-      </div>
-
       <div class="config-footer">
         <button id="btn-theme" class="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle theme">
           <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -151,6 +139,7 @@
           </svg>
         </button>
         <span id="ext-status" class="ext-status"></span>
+        <span id="portal-status" class="portal-status"></span>
         <button id="btn-diag" class="diag-toggle" title="Run network diagnostics" aria-label="Run diagnostics">diag</button>
         <span id="version-display">v3.5.2</span>
       </div>

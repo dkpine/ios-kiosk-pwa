@@ -1,14 +1,32 @@
 # Kiosk → Portal API Specification
 
-**Version:** 1.0
+**Version:** 1.2
 **Date:** March 2026
 **For:** Portal backend developer
 
 ## Overview
 
-The 1G-IOS Kiosk web app needs to look up a simulator's local network IOS address by tail number. The kiosk authenticates with the Portal the same way the IOS does (using the sim serial as the site key), then calls a new endpoint to resolve tail → IOS URL.
+The 1G-IOS Kiosk web app needs to look up a simulator's local network IOS address by its serial (tail number minus the N prefix). The kiosk strips the N prefix before sending to the Portal. The kiosk authenticates with the Portal (same `/apiv2/auth` endpoint the IOS uses), then calls a new endpoint to resolve the serial to a local IOS URL.
 
 If the Portal is unreachable, the kiosk falls back to an encrypted local device database — so this is additive, not a hard dependency.
+
+## Serial Format and Leading Zeros
+
+The kiosk strips the FAA `N` prefix and sends the raw serial. Examples:
+
+| User enters | Kiosk sends |
+|------------|-------------|
+| N321GX     | 321GX       |
+| N021GF     | 021GF       |
+| 21GF       | 21GF        |
+| N41GT      | 41GT        |
+
+**Important:** Some serials have leading zeros (e.g., `021GF`) and some don't (e.g., `41GT`). The Portal should normalize by stripping leading zeros before comparing, so that `021GF` and `21GF` both match the same device. Store whichever form is canonical in the database, but match flexibly.
+
+Recommended Portal matching logic:
+```
+incomingSerial.replace(/^0+/, '') === storedSerial.replace(/^0+/, '')
+```
 
 ## Authentication (existing endpoint)
 
@@ -20,7 +38,7 @@ Content-Type: application/json
 
 Request:
 {
-  "id": "111GX"          // sim serial (site key)
+  "id": "321GX"           // serial (tail number without N prefix)
 }
 
 Response (200):
@@ -34,7 +52,7 @@ Response (4xx/5xx):
 }
 ```
 
-The kiosk stores the site key in its local config. On startup, it authenticates and caches the token for subsequent lookups.
+The kiosk authenticates when the user enters a tail number and hits Look Up. The token is cached in the browser for subsequent lookups.
 
 ## New Endpoint: Kiosk Device Lookup
 
@@ -45,7 +63,7 @@ Content-Type: application/json
 Request:
 {
   "token": "eyJhbG...",   // from /apiv2/auth
-  "tail": "N321GX"        // normalized tail number (always N-prefixed)
+  "serial": "321GX"       // serial (tail number without N prefix)
 }
 
 Response (200, found):
@@ -71,15 +89,15 @@ Response (5xx):
 
 ### Behavior Notes
 
-- **Tail number format:** The kiosk always sends the normalized form with the `N` prefix (e.g., `N321GX`, `N12345`, `N99AB`). The Portal should match case-insensitively.
+- **Serial format:** Always WITHOUT the N prefix. May include leading zeros. The Portal should match case-insensitively and normalize leading zeros (see above).
 
-- **Not-found response:** Return `200` with `"url": null` (not a 404). The kiosk deliberately does not distinguish "not found" from "offline" to prevent tail number enumeration. A 404 would leak information to anyone watching network traffic.
+- **Not-found response:** Return `200` with `"url": null` (not a 404). The kiosk deliberately does not distinguish "not found" from "offline" to prevent serial enumeration. A 404 would leak information to anyone watching network traffic.
 
 - **URL format:** The `url` field should be a full URL including protocol, IP, and port — e.g., `http://10.38.1.1:3100/`. This is the address the Chromebook will navigate to on the local network.
 
 - **Token expiry:** If the token is expired, return 401. The kiosk will clear its cached token and re-authenticate on the next lookup.
 
-- **Timeout:** The kiosk sets a 5-second timeout on this request. If the Portal doesn't respond in time, it falls back to the local encrypted database silently.
+- **Timeout:** The kiosk sets a 5-second timeout on both auth and lookup requests. If the Portal doesn't respond in time, it falls back to the local encrypted database silently.
 
 ## New Data Field
 
@@ -89,25 +107,26 @@ Each simulator in the Portal database needs a new field:
 |-------|------|---------|-------------|
 | `iosLocalUrl` | String | `http://10.38.1.1:3100/` | Local network URL for the IOS web interface |
 
-This field should be editable in the Portal admin UI alongside the existing sim configuration (serial, aircraft, site, etc.). When a new sim is provisioned in the Portal, the operator fills in the local IOS address as part of setup.
+This field should be editable in the Portal admin UI alongside the existing sim configuration. When a new sim is provisioned in the Portal, the operator fills in the local IOS address as part of setup.
 
-The `/apiv2/kiosk/lookup` endpoint maps `tail number → sim → iosLocalUrl`.
+The `/apiv2/kiosk/lookup` endpoint maps `serial → iosLocalUrl` directly.
 
-### Lookup Logic
-
-The tail number is the aircraft registration (e.g., N321GX). The Portal already associates sims with aircraft, so the lookup chain is:
+## Kiosk Lookup Flow
 
 ```
-tail number → aircraft → sim assignment → sim.iosLocalUrl
+1. User enters tail number (e.g. N321GX) and taps Look Up
+2. Kiosk strips N prefix → "321GX"
+3. Kiosk calls POST /apiv2/auth { id: "321GX" } → gets token
+4. Kiosk calls POST /apiv2/kiosk/lookup { token, serial: "321GX" } → gets URL
+5. If Portal is unreachable at any step → falls back to local encrypted DB
+6. If neither source has the serial → honeypot URL (silent failure loop)
 ```
-
-If a tail number maps to multiple sims (e.g., fleet reassignment), return the currently active/assigned one.
 
 ## Testing
 
-Once the endpoint is live, configure the kiosk's site key in dev mode (7-tap the version number in the config footer, then enter the sim serial in the Site Key field). The diagnostics panel will show Portal connection status.
+Once the endpoint is live, enter any tail number in the kiosk and hit Look Up. The kiosk will attempt Portal auth + lookup automatically. Enable dev mode (7-tap the version number in the config footer) to see Portal connection status in the footer and diagnostics panel.
 
 The kiosk logs all Portal interactions to the browser console with the `[Kiosk]` prefix:
-- `[Kiosk] Portal auth successful`
-- `[Kiosk] Portal lookup: N321GX → http://10.38.1.1:3100/`
+- `[Kiosk] Portal auth successful for 321GX`
+- `[Kiosk] Portal lookup: 321GX → http://10.38.1.1:3100/`
 - `[Kiosk] Portal miss/fail — falling back to local DB`
