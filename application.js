@@ -634,6 +634,11 @@
       if (url.hostname === 'flyone-g.com' || url.hostname === 'www.flyone-g.com') {
         return { valid: true, url: url.href };
       }
+      // Allow any IP:port in 192.168.103.0/24 (home/test lab range)
+      var isTestSubnet = /^192\.168\.103\.\d{1,3}$/.test(url.hostname);
+      if (isTestSubnet) {
+        return { valid: true, url: url.href };
+      }
       var isPrivateIp = /^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})$/.test(url.hostname);
       if (isPrivateIp && url.port === '3100') {
         return { valid: true, url: url.href };
