@@ -1425,7 +1425,12 @@
           devTapCount = 0;
           if (devTapTimer) { clearTimeout(devTapTimer); devTapTimer = null; }
           var footer = versionDisplay.closest('.config-footer');
-          if (footer) footer.classList.toggle('dev-mode');
+          if (footer) {
+            var wasDevMode = footer.classList.contains('dev-mode');
+            footer.classList.toggle('dev-mode');
+            // Hide diag panel when leaving dev mode
+            if (wasDevMode) closeDiagnostics();
+          }
         }
       });
     }
