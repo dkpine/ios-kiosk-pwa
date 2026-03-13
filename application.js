@@ -775,7 +775,6 @@
         // The kiosk silently enters the failure/retry loop — no "not found"
         // message that would reveal whether a tail number is in the database.
         url = generateHoneypotUrl(normalized);
-        console.log('[Kiosk] Tail number not in any source — honeypot URL assigned');
       }
 
       lookupMsg.textContent = '';
