@@ -45,16 +45,18 @@
   <div id="troubleshoot-panel" class="hidden">
     <div class="troubleshoot-dialog">
       <h2>Connection Failed</h2>
-      <p class="troubleshoot-intro">Unable to reach the Instructor Operator Station. Follow these steps to restore connectivity:</p>
+      <p class="troubleshoot-intro">Unable to reach the Instructor Operator Station.</p>
+      <p class="troubleshoot-intro"><strong>Is the ATD powered on?</strong> The ATD must be fully powered on and its startup countdown must have finished before the IOS can accept connections.</p>
+      <p class="troubleshoot-intro">If you're still unable to connect, follow these steps to restore connectivity:</p>
       <ol class="troubleshoot-steps">
-        <li>Power down the ATD</li>
-        <li>Unplug the main ATD power cable from the wall</li>
-        <li>Wait ~30 seconds</li>
-        <li>Plug the main ATD power cable back into the wall</li>
-        <li><strong>IMPORTANT:</strong> Wait 2 minutes for the wireless router to fully boot (look for <em>simCONNECT</em> wireless network to appear on your smartphone's available network list)</li>
-        <li>Only after completing step 5, proceed with powering up the ATD like normal. After the startup countdown finishes, click the button below to attempt reconnection.</li>
+        <li>Power down the ATD.</li>
+        <li>Unplug the ATD's main power cable from the wall outlet.</li>
+        <li>Wait approximately 30 seconds.</li>
+        <li>Plug the main power cable back into the wall outlet.</li>
+        <li><strong>Wait at least 2 minutes</strong> for the wireless router to fully boot. To confirm it's ready, check for the <strong><em>simCONNECT</em></strong> network in your smartphone's Wi-Fi list.</li>
+        <li>Once simCONNECT appears, power on the ATD as normal. After the startup countdown finishes, tap <strong>Retry Connection</strong> below.</li>
       </ol>
-      <p class="troubleshoot-support">If the failure persists, contact one-G support for further investigation.</p>
+      <p class="troubleshoot-support">If the issue persists, contact one-G support.</p>
       <div class="troubleshoot-actions">
         <button id="btn-retry" class="btn btn-primary">Retry Connection</button>
         <button id="btn-troubleshoot-close" class="btn btn-secondary">Dismiss</button>
