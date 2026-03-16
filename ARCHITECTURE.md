@@ -64,7 +64,7 @@ The entire application is wrapped in a single IIFE with `'use strict'`. It uses 
 | `THEME_KEY` | `'ios_theme'` | localStorage key for dark/light preference |
 | `PROBE_TIMEOUT_MS` | `8000` | Timeout for extension-proxied HTTP probes |
 | `SUCCESS_BANNER_MS` | `2000` | Delay before navigating after successful probe |
-| `COUNTDOWN_SCHEDULE` | `[10, 30, 60]` | Escalating retry intervals (seconds) |
+| `RETRY_COOLDOWN_S` | `10` | Seconds between automatic retry attempts |
 | `EXTENSION_ID` | `'ffcoooniadfdngdceeiopbkdljcgnoha'` | Self-hosted extension ID (deterministic from manifest `key`) |
 | `DEVICES_ENC_URL` | `'./devices.enc'` | Encrypted device database file |
 | `DEVICES_KEY_HEX` | (256-bit hex) | AES-256-GCM decryption key (client-side; temporary) |
@@ -165,12 +165,12 @@ The kiosk authenticates with the one-G Portal using the same `/apiv2/auth` endpo
 
 ### 3.8 Retry System
 
-On connection failure, an escalating countdown timer starts:
+On connection failure, a 10-second countdown timer starts before the next automatic retry:
 
-- **Schedule:** 10s → 30s → 60s (capped), controlled by `COUNTDOWN_SCHEDULE` and `retryCount`.
-- **Visual:** SVG ring animation that depletes over the countdown duration, with seconds displayed in the center.
+- **Cooldown:** Fixed 10-second interval (`RETRY_COOLDOWN_S`), repeating indefinitely until the IOS responds.
+- **Visual:** SVG ring animation that depletes over 10 seconds, with seconds displayed in the center.
 - **Interactions:** Click the ring to retry immediately. Click anywhere else to open troubleshooting. Click the troubleshooting link below the countdown for the same.
-- **`cancelRetry()`** — Stops all timers (countdown interval, retry timeout, success timer, nav timeout timer) and resets `retryCount`.
+- **`cancelRetry()`** — Stops all timers (countdown interval, retry timeout, success timer, nav timeout timer).
 
 ### 3.9 Troubleshooting Panel
 

@@ -31,7 +31,7 @@
   var THEME_KEY = 'ios_theme';
   var PROBE_TIMEOUT_MS = 8000;
   var SUCCESS_BANNER_MS = 2000;
-  var COUNTDOWN_SCHEDULE = [10, 30, 60];
+  var RETRY_COOLDOWN_S = 10;
   var RING_CIRCUMFERENCE = 2 * Math.PI * 52; // must match <circle r="52"> in index.html
   var APP_VERSION = '3.5.4';
   var EXTENSION_ID = 'ffcoooniadfdngdceeiopbkdljcgnoha';
@@ -278,7 +278,6 @@
   var currentUrl = null;
   var retryTimer = null;
   var countdownInterval = null;
-  var retryCount = 0;
   var successTimer = null;
   var wakeLock = null;
   var countdownRetryUrl = null;
@@ -1049,7 +1048,7 @@
 
   function handleConnectionSuccess(url) {
     stopCountdown();
-    retryCount = 0;
+
     // Keep the one-G logo + loading dots visible during success banner
     if (bgLogo) bgLogo.classList.remove('hidden');
     hidePageThemeToggle();
@@ -1074,11 +1073,6 @@
     startCountdown(url);
   }
 
-  function getCountdownDuration() {
-    var index = Math.min(retryCount, COUNTDOWN_SCHEDULE.length - 1);
-    return COUNTDOWN_SCHEDULE[index];
-  }
-
   function onPageClickDuringCountdown() {
     showTroubleshootPanel();
   }
@@ -1088,7 +1082,6 @@
     var url = countdownRetryUrl;
     if (url) {
       stopCountdown();
-      retryCount++;
       navigateToUrl(url);
     }
   }
@@ -1096,7 +1089,7 @@
   function startCountdown(url) {
     stopCountdown();
     countdownRetryUrl = url;
-    var totalSeconds = getCountdownDuration();
+    var totalSeconds = RETRY_COOLDOWN_S;
     var remaining = totalSeconds;
 
     if (countdownOverlay) {
@@ -1129,7 +1122,6 @@
       if (countdownSecondsEl) countdownSecondsEl.textContent = Math.max(remaining, 0);
       if (remaining <= 0) {
         stopCountdown();
-        retryCount++;
         navigateToUrl(url);
       }
     }, 1000);
@@ -1165,7 +1157,7 @@
       clearTimeout(navTimeoutTimer);
       navTimeoutTimer = null;
     }
-    retryCount = 0;
+
   }
 
   // ============================================================
@@ -1211,7 +1203,7 @@
     var wasVisible = !troubleshootPanel.classList.contains('hidden');
     troubleshootPanel.classList.add('hidden');
     if (wasVisible && currentUrl) {
-      retryCount = 0;
+  
       navigateToUrl(currentUrl);
     }
   }
@@ -1246,7 +1238,7 @@
     if (!currentUrl) return;
     configOverlay.classList.add('hidden');
     clearValidation();
-    retryCount = 0;
+
     navigateToUrl(currentUrl);
   }
 
