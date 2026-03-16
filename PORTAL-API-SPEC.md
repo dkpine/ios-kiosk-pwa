@@ -1,8 +1,9 @@
 # Kiosk → Portal API Specification
 
-**Version:** 1.2
+**Version:** 1.3
 **Date:** March 2026
 **For:** Portal backend developer
+**Status:** Kiosk-side implementation is complete and ready for integration. The only remaining work is on the Portal side: the new endpoint and CORS configuration described below.
 
 ## Overview
 
@@ -101,6 +102,31 @@ Response (5xx):
 
 - **Timeout:** The kiosk sets a 5-second timeout on both auth and lookup requests. If the Portal doesn't respond in time, it falls back to the local encrypted database silently.
 
+## CORS Configuration (required)
+
+The kiosk runs in the browser and makes cross-origin requests to the Portal. Both endpoints (`/apiv2/auth` and `/apiv2/kiosk/lookup`) must return proper CORS headers, otherwise the browser will block the requests silently.
+
+**Required response headers:**
+
+```
+Access-Control-Allow-Origin: <kiosk origin>
+Access-Control-Allow-Methods: POST, OPTIONS
+Access-Control-Allow-Headers: Content-Type
+```
+
+The Portal must also handle `OPTIONS` preflight requests on both endpoints and return these same headers.
+
+**Kiosk origins to allow:**
+
+| Environment | Origin |
+|-------------|--------|
+| Test (current) | `https://dkpine.github.io` |
+| Production (planned) | `https://ios.flyone-g.com` |
+
+During development, allow both origins. Once the production deployment is confirmed, the GitHub Pages origin can be removed. A wildcard subdomain like `*.flyone-g.com` is also acceptable if the Portal prefers that approach.
+
+**Why this matters:** The IOS itself talks to the Portal from server-side Node.js code, so CORS has never been needed before. The kiosk is the first client hitting the Portal directly from a browser, which triggers the browser's same-origin policy. Without these headers, the kiosk's `fetch()` calls will fail with a network error — the Portal will receive and process the request, but the browser will refuse to let the kiosk read the response.
+
 ## New Data Field
 
 Each simulator in the Portal database needs a new field:
@@ -137,11 +163,19 @@ At that point:
 
 The only exception may be a hardcoded local/test entry (similar to how the IOS accepts one hardcoded `localUser` account for offline operation), but that is TBD based on field requirements.
 
+## Deployment Notes
+
+The kiosk is currently hosted on GitHub Pages (`https://dkpine.github.io/ios-kiosk-pwa/`) for development and testing. Production hosting will move to `https://ios.flyone-g.com`. The Portal URL is hardcoded in the kiosk as `https://portal.flyone-g.com` and does not need to change.
+
 ## Testing
 
-Once the endpoint is live, enter any tail number in the kiosk and hit Look Up. The kiosk will attempt Portal auth + lookup automatically. Enable dev mode (7-tap the version number in the config footer) to see Portal connection status in the footer and diagnostics panel.
+Once the endpoint is live and CORS is configured, enter any tail number in the kiosk and hit Look Up. The kiosk will attempt Portal auth + lookup automatically. No changes are needed on the kiosk side — it is ready to go.
+
+Enable dev mode (7-tap the version number in the config footer) to see Portal connection status in the footer and diagnostics panel. The footer will show "Portal OK" (green) on successful auth or "Portal offline" (red) if unreachable.
 
 The kiosk logs all Portal interactions to the browser console with the `[Kiosk]` prefix:
 - `[Kiosk] Portal auth successful for 321GX`
 - `[Kiosk] Portal lookup: 321GX → http://10.38.1.1:3100/`
 - `[Kiosk] Portal miss/fail — falling back to local DB`
+
+If auth or lookup fails silently with no console output, the issue is almost certainly CORS — check the browser's Network tab for blocked preflight requests.

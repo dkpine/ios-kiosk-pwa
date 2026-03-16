@@ -32,7 +32,7 @@
   var PROBE_TIMEOUT_MS = 8000;
   var SUCCESS_BANNER_MS = 2000;
   var COUNTDOWN_SCHEDULE = [10, 30, 60];
-  var RING_CIRCUMFERENCE = 2 * Math.PI * 52;
+  var RING_CIRCUMFERENCE = 2 * Math.PI * 52; // must match <circle r="52"> in index.html
   var APP_VERSION = '3.5.3';
   var EXTENSION_ID = 'ffcoooniadfdngdceeiopbkdljcgnoha';
   var DEVICES_ENC_URL = './devices.enc';
@@ -41,6 +41,7 @@
   var NAV_TIMEOUT_MS = 8000;
   var PORTAL_URL = 'https://portal.flyone-g.com';
   var PORTAL_TOKEN_STORAGE = 'kiosk_portal_token';
+  var PORTAL_TOKEN_SERIAL_KEY = 'kiosk_portal_serial';
 
   // ---- Extension Communication ----
   //
@@ -58,6 +59,11 @@
   var useDirectChannel = false; // true if using externally_connectable
   var pendingRequests = {};
   var requestCounter = 0;
+
+  function nextRequestId() {
+    requestCounter = (requestCounter + 1) % 1000000;
+    return requestCounter;
+  }
 
   var extensionVersion = '?';
   var onExtensionReady = null; // late-arrival callback
@@ -118,7 +124,7 @@
     }
 
     // Use content script bridge (postMessage)
-    var id = ++requestCounter;
+    var id = nextRequestId();
     message.iosKiosk = true;
     message.requestId = id;
 
@@ -155,7 +161,7 @@
       attempts++;
 
       // Try content script bridge first
-      var bridgeId = ++requestCounter;
+      var bridgeId = nextRequestId();
       var bridgeMsg = { iosKiosk: true, requestId: bridgeId, type: 'ping' };
       var resolved = false;
 
@@ -594,16 +600,25 @@
       return;
     }
 
-    // Use cached token if available
+    var serial = tailToSerial(tailNumber);
+
+    // Use cached token only if it belongs to the same device serial.
+    // When a kiosk is reassigned to a different ATD, the old token is
+    // invalid — clear it and re-authenticate with the new serial.
     var cached = localStorage.getItem(PORTAL_TOKEN_STORAGE);
-    if (cached) {
+    var cachedSerial = localStorage.getItem(PORTAL_TOKEN_SERIAL_KEY);
+    if (cached && cachedSerial === serial) {
       portalToken = cached;
-      console.log('[Kiosk] Using cached Portal token');
+      console.log('[Kiosk] Using cached Portal token for ' + serial);
       if (callback) callback(cached);
       return;
     }
-
-    var serial = tailToSerial(tailNumber);
+    if (cached && cachedSerial !== serial) {
+      console.log('[Kiosk] Serial changed (' + cachedSerial + ' → ' + serial + ') — clearing cached Portal token');
+      localStorage.removeItem(PORTAL_TOKEN_STORAGE);
+      localStorage.removeItem(PORTAL_TOKEN_SERIAL_KEY);
+      portalToken = null;
+    }
     var controller = new AbortController();
     var timeout = setTimeout(function () { controller.abort(); }, 5000);
 
@@ -622,6 +637,7 @@
         if (data.token) {
           portalToken = data.token;
           localStorage.setItem(PORTAL_TOKEN_STORAGE, data.token);
+          localStorage.setItem(PORTAL_TOKEN_SERIAL_KEY, serial);
           console.log('[Kiosk] Portal auth successful for ' + serial);
           if (callback) callback(data.token);
         } else {
@@ -662,6 +678,7 @@
         if (res.status === 401) {
           // Token expired — clear cache and retry auth next time
           localStorage.removeItem(PORTAL_TOKEN_STORAGE);
+          localStorage.removeItem(PORTAL_TOKEN_SERIAL_KEY);
           portalToken = null;
           throw new Error('Token expired');
         }
