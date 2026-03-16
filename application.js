@@ -1321,19 +1321,23 @@
     runDiagnostics();
   }
 
+  function escHtml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   function runDiagnostics() {
     if (!diagResults) return;
     diagResults.classList.remove('hidden');
     diagResults.innerHTML = '<span class="diag-info">Running diagnostics...</span>\n';
 
     var lines = [];
-    lines.push('<span class="diag-info">Page origin: ' + location.origin + '</span>');
-    lines.push('<span class="diag-info">Protocol: ' + location.protocol + '</span>');
-    lines.push('<span class="diag-info">Extension: ' + (extensionAvailable ? 'yes (v' + extensionVersion + ') via ' + (useDirectChannel ? 'direct' : 'bridge') : 'NO \u2014 HTTP probing disabled') + '</span>');
+    lines.push('<span class="diag-info">Page origin: ' + escHtml(location.origin) + '</span>');
+    lines.push('<span class="diag-info">Protocol: ' + escHtml(location.protocol) + '</span>');
+    lines.push('<span class="diag-info">Extension: ' + (extensionAvailable ? 'yes (v' + escHtml(extensionVersion) + ') via ' + (useDirectChannel ? 'direct' : 'bridge') : 'NO \u2014 HTTP probing disabled') + '</span>');
     lines.push('<span class="diag-info">chrome.runtime available: ' + (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage ? 'yes' : 'no') + '</span>');
-    lines.push('<span class="diag-info">App version: v' + APP_VERSION + '</span>');
+    lines.push('<span class="diag-info">App version: v' + escHtml(APP_VERSION) + '</span>');
     lines.push('<span class="diag-info">Portal: ' + (portalToken ? 'authenticated' : 'not connected') + '</span>');
-    lines.push('<span class="diag-info">Configured URL: ' + (currentUrl || 'none') + '</span>');
+    lines.push('<span class="diag-info">Configured URL: ' + escHtml(currentUrl || 'none') + '</span>');
     lines.push('');
 
     var tests = [];
@@ -1402,7 +1406,7 @@
     tests.forEach(function (test) {
       test.run(function (status, detail) {
         var cls = status === 'PASS' ? 'diag-pass' : 'diag-fail';
-        lines.push('<span class="' + cls + '">' + status + '</span> ' + test.label + ' \u2192 ' + detail);
+        lines.push('<span class="' + cls + '">' + escHtml(status) + '</span> ' + escHtml(test.label) + ' \u2192 ' + escHtml(detail));
         remaining--;
         if (remaining === 0) {
           lines.push('');
