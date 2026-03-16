@@ -155,7 +155,7 @@ The kiosk authenticates with the one-G Portal using the same `/apiv2/auth` endpo
 
 **`navigateToUrl(url)`** — Central navigation function. Two paths:
 
-**With extension:** Sends a proxied HTTP fetch to probe the IOS server. On success → `handleConnectionSuccess()` (green banner, 2-second delay, then `window.location.href = url`). On failure → `handleConnectionFailure()` (red banner, countdown timer, troubleshooting link).
+**With extension:** Sends a proxied HTTP fetch to probe the IOS server. On success → `handleConnectionSuccess()` (green banner, 2-second delay, then `window.location.href = url`). On failure → `handleConnectionFailure()` (red banner with context-aware text — "Connection lost" for mid-session drops, "Connection failed" for boot failures — countdown timer, troubleshooting link).
 
 **Without extension:** Cannot probe HTTP from HTTPS (mixed content). Sets a localStorage recovery breadcrumb, then blindly navigates via `window.location.href = url`. Two safety nets: (1) dead man's switch — if the page hasn't unloaded after `NAV_TIMEOUT_MS`, calls `window.stop()` and enters failure flow; (2) breadcrumb — if Chrome instantly shows an error page (destroying the JS context), the breadcrumb persists for next load.
 
@@ -178,9 +178,9 @@ A full-screen overlay with context-aware recovery guidance. The panel contains t
 
 **Boot failure** (default) — Heading: "Connection Failed". Messaging: "Unable to reach your one-G ATD's Instructor Operator Station." Prompts the user to check if the ATD is powered on and its startup countdown has finished, then provides a 6-step power cycle procedure.
 
-**Mid-session drop** (`watchdog` type) — Heading: "Connection Lost". Messaging: "Connection to your one-G ATD's Instructor Operator Station was lost." Explains that the IOS may have restarted or encountered an error, notes the kiosk will auto-reconnect, and suggests waiting before resorting to a full ATD restart. Uses the same 6-step power cycle procedure as a last resort.
+**Mid-session drop** (`watchdog` or `nav_error` type) — Heading: "Connection Lost". Banner: "Connection lost". Messaging: "Connection to your one-G ATD's Instructor Operator Station was lost." Explains that the IOS may have restarted or encountered an error, notes the kiosk will auto-reconnect, and suggests waiting before resorting to a full ATD restart. Uses the same 6-step power cycle procedure as a last resort. Both `watchdog` (ping timeout) and `nav_error` (user clicked a link on the dead IOS page) represent a previously-connected IOS going down.
 
-The context is set during boot based on `recovery_type` from the query string, and reset to `boot` whenever the user initiates a fresh connection from the config overlay (via `showLoadingAndConnect`).
+The context is set during boot based on `recovery_type` from the query string, and reset to `boot` whenever the user initiates a fresh connection from the config overlay (via `showLoadingAndConnect`). The current context is stored in `currentTroubleshootContext` so that `handleConnectionFailure()` can select the appropriate banner text.
 
 Both variants share a common footer: a support contact line, Retry Connection and Dismiss buttons, and a link to the configuration overlay.
 
@@ -324,7 +324,7 @@ The config footer's `.dev-mode` class reveals hidden elements: the diag button, 
 
 - **Amber (connecting):** `cursor: pointer` — clickable to abort and return to config
 - **Green (success):** `cursor: default` — not interactive
-- **Red (failure):** Clickable to open troubleshooting panel
+- **Red (failure):** Context-aware text ("Connection lost" for mid-session drops, "Connection failed" for boot failures). Clickable to open troubleshooting panel
 
 ### 6.5 Responsive Design
 
