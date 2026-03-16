@@ -1080,7 +1080,7 @@
 
   function handleConnectionFailure(url, err) {
     if (bgLogo) bgLogo.classList.add('hidden');
-    var msg = currentTroubleshootContext === 'watchdog'
+    var msg = (currentTroubleshootContext === 'watchdog' || currentTroubleshootContext === 'nav_error')
       ? 'Connection lost \u2014 tap for troubleshooting steps'
       : 'Connection failed \u2014 tap for troubleshooting steps';
     showBanner('error', msg);
@@ -1209,12 +1209,12 @@
   /**
    * Switch troubleshoot panel content based on recovery context.
    * 'watchdog' = IOS was running and dropped mid-session.
-   * Anything else (including 'boot' and 'nav_error') = IOS never reached.
+   * 'boot' (or any other value) = IOS never reached on initial connect.
    */
   function setTroubleshootContext(type) {
     currentTroubleshootContext = type;
     if (!troubleshootBoot || !troubleshootWatchdog) return;
-    if (type === 'watchdog') {
+    if (type === 'watchdog' || type === 'nav_error') {
       troubleshootBoot.classList.add('hidden');
       troubleshootWatchdog.classList.remove('hidden');
     } else {
