@@ -116,7 +116,9 @@
 
   // ---- Unified send function ----
 
-  function sendToExtension(message, callback) {
+  var BRIDGE_DEFAULT_TIMEOUT = 2000;
+
+  function sendToExtension(message, callback, bridgeTimeout) {
     if (useDirectChannel) {
       // Use externally_connectable direct path
       tryDirectMessage(message, callback);
@@ -130,12 +132,16 @@
 
     if (callback) {
       pendingRequests[id] = callback;
+      // Bridge timeout must be >= the operation's own timeout so that
+      // slow-but-valid responses (e.g. fetch to a cold IOS server)
+      // are not killed prematurely by the bridge layer.
+      var timeoutMs = bridgeTimeout || BRIDGE_DEFAULT_TIMEOUT;
       setTimeout(function () {
         if (pendingRequests[id]) {
           delete pendingRequests[id];
           callback({ ok: false, error: 'Extension timeout' });
         }
-      }, 2000);
+      }, timeoutMs);
     }
 
     window.postMessage(message, '*');
@@ -221,11 +227,12 @@
       callback({ ok: false, error: 'Extension not available' });
       return;
     }
+    var fetchTimeout = timeout || PROBE_TIMEOUT_MS;
     sendToExtension({
       type: 'fetch',
       url: url,
-      timeout: timeout || PROBE_TIMEOUT_MS
-    }, callback);
+      timeout: fetchTimeout
+    }, callback, fetchTimeout + 2000); // bridge timeout = fetch timeout + IPC margin
   }
 
   // ---- DOM References ----
