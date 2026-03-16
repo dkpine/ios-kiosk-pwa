@@ -285,6 +285,7 @@
   var countdownRetryUrl = null;
   var loadingTimer = null;
   var navTimeoutTimer = null;
+  var currentTroubleshootContext = 'boot';
 
   // ============================================================
   // Storage Helpers — uses localStorage (web page context)
@@ -1079,7 +1080,9 @@
 
   function handleConnectionFailure(url, err) {
     if (bgLogo) bgLogo.classList.add('hidden');
-    var msg = 'Connection failed \u2014 tap for troubleshooting steps';
+    var msg = currentTroubleshootContext === 'watchdog'
+      ? 'Connection lost \u2014 tap for troubleshooting steps'
+      : 'Connection failed \u2014 tap for troubleshooting steps';
     showBanner('error', msg);
     connectionStatus.onclick = function () {
       showTroubleshootPanel();
@@ -1209,6 +1212,7 @@
    * Anything else (including 'boot' and 'nav_error') = IOS never reached.
    */
   function setTroubleshootContext(type) {
+    currentTroubleshootContext = type;
     if (!troubleshootBoot || !troubleshootWatchdog) return;
     if (type === 'watchdog') {
       troubleshootBoot.classList.add('hidden');
