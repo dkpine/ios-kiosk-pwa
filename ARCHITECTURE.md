@@ -96,8 +96,8 @@ The PWA communicates with the extension through a dual-strategy system with auto
 
 2. **Recovery check** — Two recovery sources are checked:
    - `localStorage` breadcrumb (set before blind navigation without extension)
-   - `?recovery=` query parameter (set by extension service worker on navigation error)
-   The recovery URL is cleaned from the query string via `history.replaceState()`.
+   - `?recovery=` query parameter (set by extension service worker on navigation error or watchdog on mid-session drop)
+   When recovery comes from a query parameter, `recovery_type` is also parsed: `watchdog` (IOS was running and dropped mid-session), `nav_error` (extension caught a navigation failure), or `boot` (default — IOS never reached). This value is passed to `setTroubleshootContext()` to display the appropriate troubleshooting text. The recovery URL and type are cleaned from the query string via `history.replaceState()`.
 
 3. **Extension detection race** — Three concurrent mechanisms:
    - `onExtensionReady` callback (fires when content script sends `extensionReady` postMessage)
@@ -174,11 +174,15 @@ On connection failure, a 10-second countdown timer starts before the next automa
 
 ### 3.9 Troubleshooting Panel
 
-A full-screen overlay with structured recovery steps for when the IOS is unreachable. Includes:
-- Quick self-check ("Is the ATD powered on?")
-- 6-step power cycle procedure with emphasis on waiting for the wireless router
-- Retry Connection and Dismiss buttons
-- Link to open the configuration overlay
+A full-screen overlay with context-aware recovery guidance. The panel contains two content blocks (`troubleshoot-boot` and `troubleshoot-watchdog`), only one of which is visible at a time, controlled by `setTroubleshootContext(type)`:
+
+**Boot failure** (default) — Heading: "Connection Failed". Messaging: "Unable to reach your one-G ATD's Instructor Operator Station." Prompts the user to check if the ATD is powered on and its startup countdown has finished, then provides a 6-step power cycle procedure.
+
+**Mid-session drop** (`watchdog` type) — Heading: "Connection Lost". Messaging: "Connection to your one-G ATD's Instructor Operator Station was lost." Explains that the IOS may have restarted or encountered an error, notes the kiosk will auto-reconnect, and suggests waiting before resorting to a full ATD restart. Uses the same 6-step power cycle procedure as a last resort.
+
+The context is set during boot based on `recovery_type` from the query string, and reset to `boot` whenever the user initiates a fresh connection from the config overlay (via `showLoadingAndConnect`).
+
+Both variants share a common footer: a support contact line, Retry Connection and Dismiss buttons, and a link to the configuration overlay.
 
 ### 3.10 Configuration Overlay
 
@@ -240,14 +244,14 @@ A `pageshow` event listener detects when Chrome restores the page from bfcache (
 
 **Message handler (`handleRequest`)** — Shared handler for both `onMessage` (from content script) and `onMessageExternal` (from page directly):
 - `ping` — Returns `{ok: true, version}` for extension detection
-- `fetch` — Performs `fetch(url, {mode: 'no-cors'})` with configurable timeout via `AbortController`. Returns `{ok, status, type}` or `{ok: false, error}`.
+- `fetch` — Validates the URL against `isAllowedUrl()` (private-IP `:3100` servers and `flyone-g.com` including all subdomains), then performs `fetch(url, {mode: 'no-cors'})` with configurable timeout via `AbortController`. Returns `{ok, status, type}` or `{ok: false, error}`. URLs that don't match the allowlist are rejected with `"URL not allowed by extension policy"`, preventing the extension from being used as an open HTTP proxy.
 - `storageGet/Set/Remove` — Proxies `chrome.storage.local` operations
 
 **Programmatic content script injection** — Belt-and-suspenders: even though `content.js` is declared in the manifest, the service worker also programmatically injects it via `chrome.scripting.executeScript` when a kiosk page tab finishes loading. Handles both `tabs.onUpdated` and startup queries for already-open tabs. Tracks injected tabs in `injectedTabs` to prevent double injection.
 
-**Watchdog injection** — Same programmatic injection pattern for `watchdog.js` into IOS HTTP pages. `isIosUrl(url)` validates against the private IP + port 3100 regex pattern.
+**Watchdog injection** — Same programmatic injection pattern for `watchdog.js` into IOS HTTP pages. `isAllowedUrl(url)` validates against the private IP + port 3100 regex pattern and `flyone-g.com` subdomains.
 
-**Navigation error recovery** — `webNavigation.onErrorOccurred` listener catches failed navigations to IOS URLs (connection refused, DNS error, timeout). After a 500ms delay (to let Chrome render the error page), redirects the tab back to the kiosk PWA with `?recovery=<encoded_failed_url>`. This is the critical mechanism that returns the user to the PWA when the IOS is unreachable — without it, the user is stranded on Chrome's error page.
+**Navigation error recovery** — `webNavigation.onErrorOccurred` listener catches failed navigations to allowed URLs (connection refused, DNS error, timeout). After a 500ms delay (to let Chrome render the error page), redirects the tab back to the kiosk PWA with `?recovery=<encoded_failed_url>&recovery_type=nav_error`. This is the critical mechanism that returns the user to the PWA when the IOS is unreachable — without it, the user is stranded on Chrome's error page.
 
 ### 4.3 Content Script Bridge (`content.js`)
 
@@ -264,7 +268,7 @@ Listens for `window.postMessage` with `{iosKiosk: true}` flag. Supported message
 
 Injected into IOS HTTP pages. Wrapped in an IIFE with a `__iosKioskWatchdogLoaded` guard. Starts monitoring after a 3-second initial delay.
 
-Pings the IOS server's origin every 5 seconds via `fetch(window.location.origin + '/', {mode: 'no-cors'})` with a 4-second timeout. Tracks consecutive failures. After 3 consecutive failures, redirects the browser to the kiosk PWA URL with `?recovery=<encoded_current_url>`, matching the same recovery parameter convention used by the service worker's `onErrorOccurred` handler. This ensures that if the IOS server crashes while the user is on it, they are automatically returned to the kiosk app's retry flow with the IOS URL preserved.
+Pings the IOS server's origin every 5 seconds via `fetch(window.location.origin + '/', {mode: 'no-cors'})` with a 4-second timeout. Tracks consecutive failures. After 3 consecutive failures, redirects the browser to the kiosk PWA URL with `?recovery=<encoded_current_url>&recovery_type=watchdog`. The `recovery_type=watchdog` parameter tells the PWA that the IOS was running and dropped mid-session, triggering the "Connection Lost" troubleshooting text instead of the default "Connection Failed" boot failure message. This ensures that if the IOS server crashes while the user is on it, they are automatically returned to the kiosk app's retry flow with the IOS URL preserved and contextually appropriate guidance displayed.
 
 ---
 
@@ -282,7 +286,19 @@ The `devices.enc` file is encrypted with AES-256-GCM, but the decryption key is 
 
 The manual entry URL field enforces a strict allowlist of private IP ranges and `flyone-g.com`. This prevents the kiosk from being used as an open redirect to arbitrary websites.
 
-### 5.4 Portal Token Caching
+### 5.4 Extension Fetch Proxy Allowlist
+
+The extension's `handleRequest` function validates all `fetch` requests against `isAllowedUrl()` before proxying them. Only private-IP servers on port 3100 and `flyone-g.com` (including all subdomains, HTTP or HTTPS) are permitted. This prevents the extension from being abused as an open HTTP proxy if the PWA page were ever compromised via XSS or a rogue extension.
+
+### 5.5 Content Security Policy
+
+A strict CSP is set via `<meta http-equiv="Content-Security-Policy">` in `index.html`: `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' https://portal.flyone-g.com; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'`. This blocks inline scripts, third-party resources, iframes, and form submissions, providing defense-in-depth against XSS.
+
+### 5.6 HTML Sanitization in Diagnostics
+
+The `runDiagnostics()` function builds HTML strings via `innerHTML`. All dynamic values (URLs, extension version, test results) are passed through `escHtml()` which escapes `&`, `<`, `>`, and `"` to prevent injection via user-supplied or network-derived strings.
+
+### 5.7 Portal Token Caching
 
 The Portal JWT token is cached in localStorage for session persistence. On 401 responses, the cache is cleared and re-authentication occurs on the next lookup.
 

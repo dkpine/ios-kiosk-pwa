@@ -270,6 +270,8 @@
   var diagResults = document.getElementById('diag-results');
   var extStatus = document.getElementById('ext-status');
   var portalStatus = document.getElementById('portal-status');
+  var troubleshootBoot = document.getElementById('troubleshoot-boot');
+  var troubleshootWatchdog = document.getElementById('troubleshoot-watchdog');
 
   // ---- State ----
 
@@ -396,6 +398,7 @@
     //   2. ?recovery= query param (set by extension service worker when
     //      webNavigation.onErrorOccurred fires for an IOS URL)
     var recoveryUrl = checkRecoveryState();
+    var recoveryType = 'boot'; // default: IOS never reached
     if (!recoveryUrl) {
       try {
         var params = new URLSearchParams(window.location.search);
@@ -403,10 +406,19 @@
         if (extRecovery) {
           console.log('[Kiosk] Recovery URL from extension: ' + extRecovery);
           recoveryUrl = extRecovery;
+          // 'watchdog' = IOS was running and dropped mid-session
+          // 'nav_error' = extension caught a navigation failure
+          var rt = params.get('recovery_type');
+          if (rt === 'watchdog' || rt === 'nav_error') recoveryType = rt;
           // Clean the query string so refreshes don't loop
           history.replaceState(null, '', window.location.pathname);
         }
       } catch (e) {}
+    }
+
+    // Set troubleshoot panel context based on how we got here
+    if (recoveryUrl) {
+      setTroubleshootContext(recoveryType);
     }
 
     function updateExtStatus(available, response) {
@@ -839,6 +851,8 @@
   }
 
   function showLoadingAndConnect(url) {
+    // Fresh connection from config — reset troubleshoot to boot context
+    setTroubleshootContext('boot');
     if (loadingTimer) {
       clearTimeout(loadingTimer);
       loadingTimer = null;
@@ -1188,6 +1202,22 @@
   // ============================================================
   // Troubleshooting Panel
   // ============================================================
+
+  /**
+   * Switch troubleshoot panel content based on recovery context.
+   * 'watchdog' = IOS was running and dropped mid-session.
+   * Anything else (including 'boot' and 'nav_error') = IOS never reached.
+   */
+  function setTroubleshootContext(type) {
+    if (!troubleshootBoot || !troubleshootWatchdog) return;
+    if (type === 'watchdog') {
+      troubleshootBoot.classList.add('hidden');
+      troubleshootWatchdog.classList.remove('hidden');
+    } else {
+      troubleshootBoot.classList.remove('hidden');
+      troubleshootWatchdog.classList.add('hidden');
+    }
+  }
 
   function showTroubleshootPanel() {
     stopCountdown();
