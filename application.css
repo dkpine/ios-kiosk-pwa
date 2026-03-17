@@ -1177,6 +1177,25 @@ kbd {
   min-height: 40px;
 }
 
+.info-logo {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.info-logo-img {
+  width: 80px;
+  opacity: 0.25;
+}
+
+/* Dark mode (default): show white-text logo */
+.info-logo-light { display: none; }
+.info-logo-dark  { display: block; }
+
+/* Light mode: show navy-text logo */
+:root[data-theme="light"] .info-logo-light { display: block; }
+:root[data-theme="light"] .info-logo-dark  { display: none; }
+
 .info-toggle {
   background: none;
   border: 2px solid var(--text-muted);
