@@ -127,7 +127,7 @@ User input → normalize → Portal API → local encrypted DB → honeypot URL
 1. **Portal auth** (`portalAuth`) — POSTs `{id: serial}` to `/apiv2/auth`. Caches JWT token in localStorage. 5-second timeout.
 2. **Portal lookup** (`portalLookup`) — POSTs `{token, serial}` to `/apiv2/kiosk/lookup`. Expects `{url}` response. Handles 401 (token expired) by clearing cache. 5-second timeout.
 3. **Local DB fallback** (`localDbLookup`) — Searches the decrypted device database by raw input, normalized form, N-prefixed form, and zero-padded variations.
-4. **Honeypot fallback** (`generateHoneypotUrl`) — For unknown serials, generates a deterministic fake `10.x.x.x:3100` address from a hash of the tail number. The kiosk silently enters the failure/retry loop, making valid and invalid entries indistinguishable. No error message is shown and no console log is emitted, preventing serial enumeration.
+4. **Honeypot fallback** (`generateHoneypotUrl`) — For unknown serials, generates a deterministic fake `10.x.1.{1|2}:3100` address from a hash of the tail number. The second octet varies across all 256 values; the fourth octet is either `.1` or `.2` (matching the two real IOS host patterns), selected by a different bit of the hash. This produces 512 possible honeypot addresses. The kiosk silently enters the failure/retry loop, making valid and invalid entries indistinguishable. No error message is shown and no console log is emitted, preventing serial enumeration.
 
 **`localDbLookup(normalized, raw)`** — Multi-strategy lookup against the decrypted device database: exact match on raw input, exact match on normalized form, N-prefixed form if input started with digits, and zero-padded variations (e.g., `21GF` also checks `021GF`, `0021GF`).
 
@@ -191,11 +191,22 @@ The main UI for device setup. Contains:
 - **Manual entry** — Collapsible section with URL input + Save & Connect / Clear / Close buttons
 - **Current URL display** — Shows the stored IOS address
 - **Hotkey hint** — `Ctrl+Shift+O` to open from any screen
-- **Dev mode footer** — Theme toggle, extension status, Portal status, diag button, version number
+- **Footer** — Info (`?`) button, extension status, Portal status, diag button, version number. Extension/Portal status and diag are dev-mode-only.
 
 **Dev mode easter egg** — 7 taps on the version number within a fixed time window (2 seconds to reveal, 5 seconds to hide). Uses a non-rolling timer: the countdown starts on the first tap only and does not reset on subsequent taps. Toggling off dev mode also closes the diagnostics panel.
 
-### 3.11 Network Diagnostics
+### 3.11 Information Panel
+
+A full-screen overlay opened by the `?` button in the config footer. Provides educational content about the IOS and kiosk system:
+- Explains what the Instructor Operator Station is and what it does (flight scenarios, student monitoring, failures, session recording)
+- Describes the connection requirement (must be on the ATD's local network, typically the **simCONNECT** Wi-Fi)
+- Explains that the kiosk can't reach the IOS when not on-site
+- Links to the [one-G Portal](https://portal.flyone-g.com) for session review and debrief
+- Links to [training tutorials](https://flyone-g.com/product-training-tutorials) via a prominent button
+- Displays the one-G logo (theme-aware, float-right layout, scales down on mobile)
+- Dismissible via Close button or clicking the backdrop
+
+### 3.12 Network Diagnostics
 
 Available in dev mode via the "diag" button. Runs and displays:
 - Page origin, protocol, extension status, chrome.runtime availability, app version, Portal status, configured URL
@@ -204,7 +215,7 @@ Available in dev mode via the "diag" button. Runs and displays:
 - **IOS via extension** — Proxied fetch to the configured IOS URL (if set)
 - **IOS direct fetch** — Direct `no-cors` fetch to the IOS URL (expected to fail from HTTPS; useful for diagnostics)
 
-### 3.12 URL Validation
+### 3.13 URL Validation
 
 `validateUrl(urlString)` enforces a strict allowlist:
 - `flyone-g.com` / `www.flyone-g.com` — any port
@@ -213,15 +224,15 @@ Available in dev mode via the "diag" button. Runs and displays:
 - `localhost` — port 3100 only
 - Everything else is rejected
 
-### 3.13 Theme System
+### 3.14 Theme System
 
-Light theme (default) and dark theme, controlled by CSS custom properties on `:root`. The light theme is activated via `data-theme="light"` on the root element; removing that attribute reverts to dark. Persisted in localStorage under `THEME_KEY`. A theme toggle button appears in the config footer and as a standalone button on connecting/retry screens.
+Light theme (default) and dark theme, controlled by CSS custom properties on `:root`. The light theme is activated via `data-theme="light"` on the root element; removing that attribute reverts to dark. Persisted in localStorage under `THEME_KEY`. A single page-level theme toggle button is fixed to the bottom-left corner of the viewport and is always visible on every screen (config overlay, info panel, connecting/retry, troubleshooting).
 
-### 3.14 Wake Lock
+### 3.15 Wake Lock
 
 Uses the Screen Wake Lock API (`navigator.wakeLock.request('screen')`) to prevent the Chromebook display from sleeping during kiosk operation. Re-acquires the lock on `visibilitychange` if it was released.
 
-### 3.15 Back-Forward Cache Recovery
+### 3.16 Back-Forward Cache Recovery
 
 A `pageshow` event listener detects when Chrome restores the page from bfcache (`event.persisted`). If the page is restored with stale state (e.g., stuck on a green banner), it re-triggers `navigateToUrl()` for the current URL.
 
@@ -276,7 +287,7 @@ Pings the IOS server's origin every 5 seconds via `fetch(window.location.origin 
 
 ### 5.1 Honeypot System
 
-Unknown tail numbers receive a deterministic fake IOS address (`generateHoneypotUrl`) rather than a "not found" error. This prevents serial enumeration — an attacker cannot distinguish valid from invalid serials by observing the UI or network traffic. The honeypot URL is a plausible `10.x.x.x:3100` address derived from a hash of the input. No console logs are emitted for honeypot assignments.
+Unknown tail numbers receive a deterministic fake IOS address (`generateHoneypotUrl`) rather than a "not found" error. This prevents serial enumeration — an attacker cannot distinguish valid from invalid serials by observing the UI or network traffic. The honeypot URL is a plausible `10.x.1.{1|2}:3100` address derived from a hash of the input, matching the two real IOS host patterns used across sim types. The pool of 512 addresses (256 second-octet values × 2 fourth-octet values) minimizes the chance of a random guess hitting a real IOS on the simCONNECT network. No console logs are emitted for honeypot assignments.
 
 ### 5.2 Encrypted Device Database (Temporary)
 
@@ -312,21 +323,28 @@ Light theme is the default. Dark theme is available via toggle. All colors are d
 
 ### 6.2 Dialog Layout
 
-Both the config overlay and troubleshoot panel use the same layout pattern: fixed-position full-screen backdrop (`overflow: hidden`) with a centered dialog box that scrolls internally. The dialog uses `max-height: calc(100vh - 24px)` with `overflow-y: auto` and styled thin scrollbars that respect the 16px `border-radius` (scrollbar track has `margin: 16px 0` to inset from corners).
+The config overlay, troubleshoot panel, and info panel all use the same layout pattern: fixed-position full-screen backdrop (`overflow: hidden`) with a centered dialog box that scrolls internally. The dialog uses `max-height: calc(100vh - 24px)` with `overflow-y: auto` and styled thin scrollbars that respect the 16px `border-radius` (scrollbar track has `margin: 16px 0` to inset from corners). Z-index layering: page-level elements (theme toggle, copyright) at 1200, info panel at 1100, config overlay at 1000, troubleshoot at 500, countdown at 50.
 
 Spacing is compact-first: padding, margins, and font sizes are tightened so all content fits on screen before the scrollbar appears. The scrollbar is a last resort for edge cases like having both the manual entry section and diagnostics panel open simultaneously.
 
 ### 6.3 Dev Mode
 
-The config footer's `.dev-mode` class reveals hidden elements: the diag button, extension status indicator, and Portal status indicator. The extension status sits centered in the footer (using `margin-left: auto` to split space between the theme button on the left and the diag/version on the right).
+The config footer's `.dev-mode` class reveals hidden elements: the diag button, extension status indicator, and Portal status indicator. The extension status sits centered in the footer.
 
-### 6.4 Banner States
+### 6.4 Page-Level Elements
+
+Two elements are fixed to the viewport and visible on every screen:
+
+- **Theme toggle** (`.page-theme-toggle`) — Bottom-left corner, `z-index: 1200`. Always visible across config overlay, info panel, connecting/retry, and troubleshooting screens.
+- **Copyright footer** (`.page-copyright`) — Bottom-center, `z-index: 1200`, `pointer-events: none` (with the "Contact Us" mailto link set to `pointer-events: auto`). Displays "© 2026 one-G, LLC · Contact Us" with a `mailto:support@flyone-g.com` link.
+
+### 6.5 Banner States
 
 - **Amber (connecting):** `cursor: pointer` — clickable to abort and return to config
 - **Green (success):** `cursor: default` — not interactive
 - **Red (failure):** Context-aware text ("Connection lost" for mid-session drops, "Connection failed" for boot failures). Clickable to open troubleshooting panel
 
-### 6.5 Responsive Design
+### 6.6 Responsive Design
 
 Two media query breakpoints:
 - `max-width: 480px` — Stacks buttons vertically, reduces padding, shrinks fonts
