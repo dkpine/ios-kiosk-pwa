@@ -773,14 +773,17 @@
    * Indistinguishable from a real IOS being offline.
    */
   function generateHoneypotUrl(tailStr) {
-    // Simple deterministic hash → plausible 10.x.1.1:3100 address
-    // matching real IOS network pattern (only second octet varies)
+    // Simple deterministic hash → plausible 10.x.1.{1|2}:3100 address
+    // matching real IOS network pattern. Second octet varies; fourth
+    // octet is either .1 or .2 (some sims use .2), decided by a hash bit.
     var hash = 0;
     for (var i = 0; i < tailStr.length; i++) {
       hash = ((hash << 5) - hash + tailStr.charCodeAt(i)) | 0;
     }
-    var octet = Math.abs(hash) % 256;
-    return 'http://10.' + octet + '.1.1:3100/';
+    var abs = Math.abs(hash);
+    var octet = abs % 256;
+    var lastOctet = (abs >>> 8) % 2 === 0 ? 1 : 2;
+    return 'http://10.' + octet + '.1.' + lastOctet + ':3100/';
   }
 
   function handleLookup() {
@@ -1490,16 +1493,21 @@
     if (btnInfo) {
       btnInfo.addEventListener('click', function () {
         if (infoPanel) infoPanel.classList.remove('hidden');
+        if (pageThemeToggle) pageThemeToggle.classList.remove('hidden');
       });
     }
     if (btnInfoClose) {
       btnInfoClose.addEventListener('click', function () {
         if (infoPanel) infoPanel.classList.add('hidden');
+        if (pageThemeToggle) pageThemeToggle.classList.add('hidden');
       });
     }
     if (infoPanel) {
       infoPanel.addEventListener('click', function (e) {
-        if (e.target === infoPanel) infoPanel.classList.add('hidden');
+        if (e.target === infoPanel) {
+          infoPanel.classList.add('hidden');
+          if (pageThemeToggle) pageThemeToggle.classList.add('hidden');
+        }
       });
     }
 
