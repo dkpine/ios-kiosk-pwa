@@ -868,6 +868,7 @@
       loadingTimer = null;
       navigateToUrl(url);
       configOverlay.classList.add('hidden');
+      if (pageThemeToggle) pageThemeToggle.classList.remove('hidden');
       resetLoadingState();
     }, 1200);
   }
@@ -1011,6 +1012,7 @@
       showConfigOverlay();
     };
     if (bgLogo) bgLogo.classList.remove('hidden');
+    if (pageThemeToggle) pageThemeToggle.classList.remove('hidden');
 
     if (!extensionAvailable) {
       // Without the extension we can't probe HTTP from this HTTPS page
@@ -1251,6 +1253,7 @@
     manualSection.classList.add('hidden');
     btnManualToggle.classList.remove('expanded');
     configOverlay.classList.remove('hidden');
+    if (pageThemeToggle) pageThemeToggle.classList.add('hidden');
     clearValidation();
     clearLookupMsg();
 
@@ -1264,6 +1267,7 @@
   function hideConfigOverlay() {
     if (!currentUrl) return;
     configOverlay.classList.add('hidden');
+    if (pageThemeToggle) pageThemeToggle.classList.remove('hidden');
     clearValidation();
 
     navigateToUrl(currentUrl);
