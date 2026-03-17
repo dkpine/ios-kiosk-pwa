@@ -773,15 +773,14 @@
    * Indistinguishable from a real IOS being offline.
    */
   function generateHoneypotUrl(tailStr) {
-    // Simple deterministic hash → three octets in 10.0.x.x range
+    // Simple deterministic hash → plausible 10.x.1.1:3100 address
+    // matching real IOS network pattern (only second octet varies)
     var hash = 0;
     for (var i = 0; i < tailStr.length; i++) {
       hash = ((hash << 5) - hash + tailStr.charCodeAt(i)) | 0;
     }
-    var a = Math.abs(hash >> 16) % 256;
-    var b = Math.abs(hash >> 8) % 256;
-    var c = Math.abs(hash) % 254 + 1; // 1-254, avoid .0 and .255
-    return 'http://10.' + a + '.' + b + '.' + c + ':3100/';
+    var octet = Math.abs(hash) % 256;
+    return 'http://10.' + octet + '.1.1:3100/';
   }
 
   function handleLookup() {
