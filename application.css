@@ -1136,6 +1136,20 @@ kbd {
   font-weight: 600;
 }
 
+.info-inline-link {
+  color: var(--accent);
+  text-decoration: none;
+  transition: text-decoration 0.2s;
+}
+
+.info-inline-link:hover {
+  text-decoration: underline;
+}
+
+.info-inline-link strong {
+  color: var(--accent);
+}
+
 .info-training {
   margin-top: 18px;
   padding-top: 14px;
