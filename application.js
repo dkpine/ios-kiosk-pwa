@@ -247,6 +247,7 @@
   var addrInput = document.getElementById('ios-addr-input');
   var validationMsg = document.getElementById('validation-msg');
   var currentUrlDisplay = document.getElementById('current-url-display');
+  var currentLabel = document.getElementById('current-label');
   var btnSave = document.getElementById('btn-save');
   var btnClear = document.getElementById('btn-clear');
   var btnClose = document.getElementById('btn-close');
@@ -1310,7 +1311,16 @@
 
   function updateCurrentUrlDisplay() {
     var display = tailToDisplay(currentTail);
-    currentUrlDisplay.textContent = display || 'Not configured';
+    if (display) {
+      currentLabel.textContent = 'Current device:';
+      currentUrlDisplay.textContent = display;
+    } else if (currentUrl) {
+      currentLabel.textContent = 'Current:';
+      currentUrlDisplay.textContent = currentUrl;
+    } else {
+      currentLabel.textContent = 'Current:';
+      currentUrlDisplay.textContent = 'Not configured';
+    }
   }
 
   function updatePortalStatus(connected) {
