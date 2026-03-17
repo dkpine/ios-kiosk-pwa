@@ -249,7 +249,6 @@
   var btnSave = document.getElementById('btn-save');
   var btnClear = document.getElementById('btn-clear');
   var btnClose = document.getElementById('btn-close');
-  var btnTheme = document.getElementById('btn-theme');
   var btnOpenConfig = document.getElementById('btn-open-config');
   var tailInput = document.getElementById('tail-input');
   var btnLookup = document.getElementById('btn-lookup');
@@ -870,7 +869,6 @@
       loadingTimer = null;
       navigateToUrl(url);
       configOverlay.classList.add('hidden');
-      if (pageThemeToggle) pageThemeToggle.classList.remove('hidden');
       resetLoadingState();
     }, 1200);
   }
@@ -1014,7 +1012,6 @@
       showConfigOverlay();
     };
     if (bgLogo) bgLogo.classList.remove('hidden');
-    if (pageThemeToggle) pageThemeToggle.classList.remove('hidden');
 
     if (!extensionAvailable) {
       // Without the extension we can't probe HTTP from this HTTPS page
@@ -1255,7 +1252,6 @@
     manualSection.classList.add('hidden');
     btnManualToggle.classList.remove('expanded');
     configOverlay.classList.remove('hidden');
-    if (pageThemeToggle) pageThemeToggle.classList.add('hidden');
     clearValidation();
     clearLookupMsg();
 
@@ -1269,7 +1265,6 @@
   function hideConfigOverlay() {
     if (!currentUrl) return;
     configOverlay.classList.add('hidden');
-    if (pageThemeToggle) pageThemeToggle.classList.remove('hidden');
     clearValidation();
 
     navigateToUrl(currentUrl);
@@ -1488,26 +1483,19 @@
       });
     }
 
-    btnTheme.addEventListener('click', toggleTheme);
-
     if (btnInfo) {
       btnInfo.addEventListener('click', function () {
         if (infoPanel) infoPanel.classList.remove('hidden');
-        if (pageThemeToggle) pageThemeToggle.classList.remove('hidden');
       });
     }
     if (btnInfoClose) {
       btnInfoClose.addEventListener('click', function () {
         if (infoPanel) infoPanel.classList.add('hidden');
-        if (pageThemeToggle) pageThemeToggle.classList.add('hidden');
       });
     }
     if (infoPanel) {
       infoPanel.addEventListener('click', function (e) {
-        if (e.target === infoPanel) {
-          infoPanel.classList.add('hidden');
-          if (pageThemeToggle) pageThemeToggle.classList.add('hidden');
-        }
+        if (e.target === infoPanel) infoPanel.classList.add('hidden');
       });
     }
 
