@@ -1165,10 +1165,18 @@ kbd {
   margin-top: 4px;
 }
 
-.info-actions {
+.info-bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
   margin-top: 18px;
+  gap: 16px;
+}
+
+.info-actions {
   display: flex;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .info-actions .btn {
@@ -1180,12 +1188,11 @@ kbd {
 .info-logo {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
+  flex-shrink: 0;
 }
 
 .info-logo-img {
-  width: 80px;
-  opacity: 0.25;
+  width: 120px;
 }
 
 /* Dark mode (default): show white-text logo */
@@ -1238,6 +1245,11 @@ kbd {
     font-size: 18px;
   }
 
+  .info-bottom {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .info-actions {
     flex-direction: column;
   }
@@ -1245,6 +1257,10 @@ kbd {
   .info-actions .btn {
     width: 100%;
     text-align: center;
+  }
+
+  .info-logo {
+    justify-content: center;
   }
 }
 
