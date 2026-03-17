@@ -767,6 +767,12 @@
     return 'N' + m[1] + m[2];
   }
 
+  /** Convert normalized tail (e.g. "N293DP") to display form ("SIM-293DP"). */
+  function tailToDisplay(normalized) {
+    if (!normalized) return null;
+    return 'SIM-' + normalized.replace(/^N/, '');
+  }
+
   /**
    * Generate a deterministic honeypot URL from a tail number string.
    * Produces a plausible-looking 10.x.x.x:3100 address that will never
@@ -1012,8 +1018,9 @@
   function navigateToUrl(url) {
     cancelRetry();
     dismissTroubleshootPanel();
-    var connectMsg = currentTail
-      ? 'Connecting to ' + currentTail + '...'
+    var displayTail = tailToDisplay(currentTail);
+    var connectMsg = displayTail
+      ? 'Connecting to ' + displayTail + '...'
       : 'Connecting to one-G Instructor Operator Station...';
     showBanner('connecting', connectMsg);
     connectionStatus.onclick = function () {
@@ -1073,8 +1080,9 @@
     // Keep the one-G logo + loading dots visible during success banner
     if (bgLogo) bgLogo.classList.remove('hidden');
 
-    var successMsg = currentTail
-      ? 'Connected \u2014 Launching ' + currentTail + '...'
+    var displayTail = tailToDisplay(currentTail);
+    var successMsg = displayTail
+      ? 'Connected \u2014 Launching ' + displayTail + '...'
       : 'Connected \u2014 Launching one-G Instructor Operator Station...';
     showBanner('success', successMsg);
 
