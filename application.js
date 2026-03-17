@@ -929,13 +929,6 @@
     }
   }
 
-  function showPageThemeToggle() {
-    if (pageThemeToggle) pageThemeToggle.classList.remove('hidden');
-  }
-
-  function hidePageThemeToggle() {
-    if (pageThemeToggle) pageThemeToggle.classList.add('hidden');
-  }
 
 
   // ============================================================
@@ -1018,7 +1011,6 @@
       showConfigOverlay();
     };
     if (bgLogo) bgLogo.classList.remove('hidden');
-    showPageThemeToggle();
 
     if (!extensionAvailable) {
       // Without the extension we can't probe HTTP from this HTTPS page
@@ -1070,7 +1062,6 @@
 
     // Keep the one-G logo + loading dots visible during success banner
     if (bgLogo) bgLogo.classList.remove('hidden');
-    hidePageThemeToggle();
 
     showBanner('success', 'Connected \u2014 Launching one-G Instructor Operator Station...');
 
@@ -1229,7 +1220,6 @@
 
   function showTroubleshootPanel() {
     stopCountdown();
-    hidePageThemeToggle();
     troubleshootPanel.classList.remove('hidden');
   }
 
@@ -1254,7 +1244,6 @@
     resetLoadingState();
     cancelRetry();
     dismissTroubleshootPanel();
-    hidePageThemeToggle();
     hideBanner();
     if (bgLogo) bgLogo.classList.add('hidden');
     addrInput.value = currentUrl || '';
