@@ -1142,17 +1142,13 @@ kbd {
   border-top: 1px solid var(--border-subtle);
 }
 
-.info-link {
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 15px;
+.info-tutorials-btn {
   display: inline-block;
+  text-decoration: none;
+  text-align: center;
+  font-size: 15px;
+  padding: 12px 24px;
   margin-top: 4px;
-}
-
-.info-link:hover {
-  text-decoration: underline;
 }
 
 .info-actions {
