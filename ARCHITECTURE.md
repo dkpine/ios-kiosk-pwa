@@ -1,6 +1,6 @@
 # 1G-IOS Kiosk Application — Architecture & Code Summary
 
-**Version:** 3.5.4
+**Version:** 3.6
 **Date:** March 2026
 **Purpose:** Comprehensive technical reference for human developers and AI agents performing code review, maintenance, or feature development.
 
@@ -354,7 +354,7 @@ The extension has gone through two distribution strategies, driven by problems e
 
 **Self-hosted (initial approach):** The extension was packaged as a `.crx` and served from GitHub Pages with an `updates.xml` manifest. The extension ID (`ffcoooniadfdngdceeiopbkdljcgnoha`) is deterministic via the `key` field in `manifest.json`. This worked in non-kiosk Chrome and in developer mode, but **failed to load reliably on managed Chromebooks in URL-based kiosk mode**. ChromeOS kiosk sessions enforce stricter extension policies than regular browser sessions — self-hosted extensions configured via `ExtensionInstallForcelist` were either silently ignored or failed to install during the kiosk session bootstrap. The extension would never appear, and the PWA would fall back to the no-extension path (blind navigation), which cannot recover from connection failures.
 
-**Chrome Web Store (current approach):** To resolve the self-hosted loading issue, the extension was submitted to the Chrome Web Store (ID: `ojhmfklcaknmocfiibdeclhahffofgan`). Web Store extensions are treated as first-class citizens by ChromeOS kiosk mode and install reliably via the Admin Console's kiosk app/extension configuration. **Version 3.4.0 is currently pending Google's review.** Once approved, v3.5.4 will be uploaded as an update. The `EXTENSION_ID` in `application.js` currently still references the self-hosted ID and will need to be updated to the Web Store ID once the extension is published and confirmed working on production kiosk devices.
+**Chrome Web Store (current approach):** To resolve the self-hosted loading issue, the extension was submitted to the Chrome Web Store (ID: `ojhmfklcaknmocfiibdeclhahffofgan`). Web Store extensions are treated as first-class citizens by ChromeOS kiosk mode and install reliably via the Admin Console's kiosk app/extension configuration. **Version 3.4.0 is currently pending Google's review.** Once approved, v3.6 will be uploaded as an update. The `EXTENSION_ID` in `application.js` currently still references the self-hosted ID and will need to be updated to the Web Store ID once the extension is published and confirmed working on production kiosk devices.
 
 The self-hosted ID and infrastructure remain in place as a fallback for development and non-kiosk testing.
 
@@ -375,7 +375,7 @@ When moving from GitHub Pages to `ios.flyone-g.com`:
 
 ## 8. Pending Work
 
-1. **Chrome Web Store review** — Extension v3.4.0 pending. Once approved, upload v3.5.4 as update.
+1. **Chrome Web Store review** — Extension v3.4.0 pending. Once approved, upload v3.6 as update.
 2. **Portal endpoint implementation** — Portal dev needs to implement `/apiv2/kiosk/lookup` with CORS headers per `PORTAL-API-SPEC.md`. Kiosk-side code is complete.
 3. **Remove local device database** — After Portal is validated: delete `devices.enc`, `devices.json`, `encrypt-devices.js`, and the `loadDeviceDb()`/`localDbLookup()` code.
 4. **Production Chromebook testing** — End-to-end validation in URL-based kiosk mode with the extension installed.
