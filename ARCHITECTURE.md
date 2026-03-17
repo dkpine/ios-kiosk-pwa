@@ -192,7 +192,7 @@ Both variants share a common footer: a support contact line, Retry Connection an
 The main UI for device setup. Contains:
 - **Tail number lookup** — Text input + Look Up button (primary flow)
 - **Manual entry** — Collapsible section with URL input + Save & Connect / Clear / Close buttons
-- **Current device display** — Shows the stored tail number in `SIM-` format (e.g., "SIM-321GX") via `tailToDisplay()`. The raw IOS URL is never exposed to the user — it remains in localStorage for internal navigation only. Shows "Not configured" when no device is set.
+- **Current device/URL display** — Context-aware: shows "Current device: SIM-321GX" when a tail number was used (via `tailToDisplay()`), or "Current: http://10.38.1.1:3100/" when a manual URL was entered directly. Shows "Current: Not configured" when no device is set. The label text switches dynamically between "Current device:" and "Current:" based on whether a tail number is available.
 - **Hotkey hint** — `Ctrl+Shift+O` to open from any screen
 - **Footer** — Info (`?`) button, extension status, Portal status, diag button, version number. Extension/Portal status and diag are dev-mode-only.
 
@@ -292,7 +292,7 @@ Pings the IOS server's origin every 5 seconds via `fetch(window.location.origin 
 
 Unknown tail numbers receive a deterministic fake IOS address (`generateHoneypotUrl`) rather than a "not found" error. This prevents serial enumeration — an attacker cannot distinguish valid from invalid serials by observing the UI or network traffic. The honeypot URL is a plausible `10.x.1.{1|2}:3100` address derived from a hash of the input, matching the two real IOS host patterns used across sim types. The pool of 512 addresses (256 second-octet values × 2 fourth-octet values) minimizes the chance of a random guess hitting a real IOS on the simCONNECT network. No console logs are emitted for honeypot assignments.
 
-The raw IOS URL is never displayed in the UI — all user-facing surfaces (banners, config overlay "Current device" field) show only the `SIM-` formatted tail number via `tailToDisplay()`. The URL remains accessible only through browser DevTools (localStorage), where the honeypot's plausible `10.x.1.{1|2}:3100` format still provides indistinguishability from real IOS addresses.
+When a tail number is used (the primary flow), the raw IOS URL is never displayed in the UI — banners and the config overlay's "Current device" field show only the `SIM-` formatted tail number via `tailToDisplay()`. The URL remains accessible only through browser DevTools (localStorage), where the honeypot's plausible `10.x.1.{1|2}:3100` format still provides indistinguishability from real IOS addresses. Manual URL entries bypass the lookup system entirely and display the URL directly, but this is an advanced/debug path that doesn't interact with the honeypot system.
 
 ### 5.2 Encrypted Device Database (Temporary)
 
