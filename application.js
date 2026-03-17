@@ -462,7 +462,7 @@
           console.log('[Kiosk] Recovery (with extension): re-attempting ' + savedUrl);
         }
         currentUrl = savedUrl;
-        updateCurrentUrlDisplay(savedUrl);
+        updateCurrentUrlDisplay();
         navigateToUrl(savedUrl);
       } else {
         // Try migrating from extension storage
@@ -470,7 +470,7 @@
           if (resp && resp.ok && resp.value) {
             localStorage.setItem(STORAGE_KEY, resp.value);
             currentUrl = resp.value;
-            updateCurrentUrlDisplay(resp.value);
+            updateCurrentUrlDisplay();
             navigateToUrl(resp.value);
           } else {
             showConfigOverlay();
@@ -506,7 +506,7 @@
           console.log('[Kiosk] Recovery (no extension): re-attempting ' + savedUrl);
         }
         currentUrl = savedUrl;
-        updateCurrentUrlDisplay(savedUrl);
+        updateCurrentUrlDisplay();
         navigateToUrl(savedUrl);
       } else {
         showConfigOverlay();
@@ -993,7 +993,7 @@
   function saveUrl(url) {
     storageSet(STORAGE_KEY, url);
     currentUrl = url;
-    updateCurrentUrlDisplay(url);
+    updateCurrentUrlDisplay();
   }
 
   function clearSavedUrl() {
@@ -1002,7 +1002,7 @@
     currentUrl = null;
     currentTail = null;
     cancelRetry();
-    updateCurrentUrlDisplay(null);
+    updateCurrentUrlDisplay();
   }
 
   // ============================================================
@@ -1308,8 +1308,9 @@
     validationMsg.className = 'validation-msg ' + type;
   }
 
-  function updateCurrentUrlDisplay(url) {
-    currentUrlDisplay.textContent = url || 'Not configured';
+  function updateCurrentUrlDisplay() {
+    var display = tailToDisplay(currentTail);
+    currentUrlDisplay.textContent = display || 'Not configured';
   }
 
   function updatePortalStatus(connected) {
