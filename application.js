@@ -272,6 +272,9 @@
   var portalStatus = document.getElementById('portal-status');
   var troubleshootBoot = document.getElementById('troubleshoot-boot');
   var troubleshootWatchdog = document.getElementById('troubleshoot-watchdog');
+  var infoPanel = document.getElementById('info-panel');
+  var btnInfo = document.getElementById('btn-info');
+  var btnInfoClose = document.getElementById('btn-info-close');
 
   // ---- State ----
 
@@ -1208,7 +1211,7 @@
 
   /**
    * Switch troubleshoot panel content based on recovery context.
-   * 'watchdog' = IOS was running and dropped mid-session.
+   * 'watchdog' or 'nav_error' = IOS was running and dropped mid-session.
    * 'boot' (or any other value) = IOS never reached on initial connect.
    */
   function setTroubleshootContext(type) {
@@ -1490,6 +1493,22 @@
     }
 
     btnTheme.addEventListener('click', toggleTheme);
+
+    if (btnInfo) {
+      btnInfo.addEventListener('click', function () {
+        if (infoPanel) infoPanel.classList.remove('hidden');
+      });
+    }
+    if (btnInfoClose) {
+      btnInfoClose.addEventListener('click', function () {
+        if (infoPanel) infoPanel.classList.add('hidden');
+      });
+    }
+    if (infoPanel) {
+      infoPanel.addEventListener('click', function (e) {
+        if (e.target === infoPanel) infoPanel.classList.add('hidden');
+      });
+    }
 
     if (pageThemeToggle) {
       pageThemeToggle.addEventListener('click', function (e) {
