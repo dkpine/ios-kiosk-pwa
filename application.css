@@ -1229,6 +1229,35 @@ kbd {
   }
 }
 
+/* --- Copyright Footer --- */
+
+.copyright-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.copyright-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.page-copyright {
+  position: fixed;
+  bottom: 16px;
+  left: 0;
+  right: 0;
+  z-index: 55;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.page-copyright .copyright-link {
+  pointer-events: auto;
+}
+
 /* --- Utility --- */
 
 .hidden {

@@ -275,6 +275,7 @@
   var infoPanel = document.getElementById('info-panel');
   var btnInfo = document.getElementById('btn-info');
   var btnInfoClose = document.getElementById('btn-info-close');
+  var pageCopyright = document.getElementById('page-copyright');
 
   // ---- State ----
 
@@ -931,10 +932,12 @@
 
   function showPageThemeToggle() {
     if (pageThemeToggle) pageThemeToggle.classList.remove('hidden');
+    if (pageCopyright) pageCopyright.classList.remove('hidden');
   }
 
   function hidePageThemeToggle() {
     if (pageThemeToggle) pageThemeToggle.classList.add('hidden');
+    if (pageCopyright) pageCopyright.classList.add('hidden');
   }
 
   // ============================================================
