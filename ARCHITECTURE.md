@@ -123,6 +123,8 @@ User input → normalize → Portal API → local encrypted DB → honeypot URL
 
 **`tailToSerial(normalized)`** — Strips the `N` prefix for Portal communication (e.g., `"N321GX"` → `"321GX"`). The Portal uses the raw serial, not the N-prefixed form.
 
+**`tailToDisplay(normalized)`** — Converts the internal N-prefix form to the user-facing `SIM-` display format (e.g., `"N321GX"` → `"SIM-321GX"`). Used in banner text so the displayed tail number matches the branding users expect, regardless of which input format they used.
+
 **`handleLookup()`** — Entry point from the Look Up button. Validates input, shows "Looking up..." state, then calls `tryPortalThenLocal()`:
 
 1. **Portal auth** (`portalAuth`) — POSTs `{id: serial}` to `/apiv2/auth`. Caches JWT token in localStorage. 5-second timeout.
@@ -156,7 +158,7 @@ The kiosk authenticates with the one-G Portal using the same `/apiv2/auth` endpo
 
 **`navigateToUrl(url)`** — Central navigation function. Two paths:
 
-**With extension:** Sends a proxied HTTP fetch to probe the IOS server. On success → `handleConnectionSuccess()` (green banner, 2-second delay, then `window.location.href = url`). On failure → `handleConnectionFailure()` (red banner with context-aware text — "Connection lost" for mid-session drops, "Connection failed" for boot failures — countdown timer, troubleshooting link). Both amber ("Connecting to...") and green ("Connected — Launching...") banners display the tail number (e.g., "Connecting to N321GX...") when available, falling back to "one-G Instructor Operator Station" for manual URL entries without a tail number.
+**With extension:** Sends a proxied HTTP fetch to probe the IOS server. On success → `handleConnectionSuccess()` (green banner, 2-second delay, then `window.location.href = url`). On failure → `handleConnectionFailure()` (red banner with context-aware text — "Connection lost" for mid-session drops, "Connection failed" for boot failures — countdown timer, troubleshooting link). Both amber ("Connecting to...") and green ("Connected — Launching...") banners display the tail number in `SIM-` format via `tailToDisplay()` (e.g., "Connecting to SIM-321GX...") when available, falling back to "one-G Instructor Operator Station" for manual URL entries without a tail number.
 
 **Without extension:** Cannot probe HTTP from HTTPS (mixed content). Sets a localStorage recovery breadcrumb, then blindly navigates via `window.location.href = url`. Two safety nets: (1) dead man's switch — if the page hasn't unloaded after `NAV_TIMEOUT_MS`, calls `window.stop()` and enters failure flow; (2) breadcrumb — if Chrome instantly shows an error page (destroying the JS context), the breadcrumb persists for next load.
 
@@ -341,8 +343,8 @@ Two elements are fixed to the viewport and visible on every screen:
 
 ### 6.5 Banner States
 
-- **Amber (connecting):** `cursor: pointer` — clickable to abort and return to config. Text: "Connecting to {tail}..." or "Connecting to one-G Instructor Operator Station..."
-- **Green (success):** `cursor: default` — not interactive. Text: "Connected — Launching {tail}..." or "Connected — Launching one-G Instructor Operator Station..."
+- **Amber (connecting):** `cursor: pointer` — clickable to abort and return to config. Text: "Connecting to SIM-{tail}..." or "Connecting to one-G Instructor Operator Station..."
+- **Green (success):** `cursor: default` — not interactive. Text: "Connected — Launching SIM-{tail}..." or "Connected — Launching one-G Instructor Operator Station..."
 - **Red (failure):** Context-aware text ("Connection lost" for mid-session drops, "Connection failed" for boot failures). Clickable to open troubleshooting panel
 
 ### 6.6 Responsive Design
