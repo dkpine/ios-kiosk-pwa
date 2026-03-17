@@ -1081,7 +1081,6 @@ kbd {
 }
 
 .info-dialog {
-  position: relative;
   background: var(--bg-dialog);
   border-radius: 16px;
   padding: 24px 28px;
@@ -1179,10 +1178,9 @@ kbd {
 }
 
 .info-logo-img {
-  position: absolute;
-  bottom: 16px;
-  right: 20px;
+  float: right;
   width: 110px;
+  margin: -8px 0 0 16px;
   pointer-events: none;
 }
 
@@ -1246,9 +1244,8 @@ kbd {
   }
 
   .info-logo-img {
-    width: 80px;
-    bottom: 12px;
-    right: 14px;
+    width: 70px;
+    margin: -4px 0 0 12px;
   }
 }
 
