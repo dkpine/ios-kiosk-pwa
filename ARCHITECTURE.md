@@ -69,6 +69,7 @@ The entire application is wrapped in a single IIFE with `'use strict'`. It uses 
 | `DEVICES_ENC_URL` | `'./devices.enc'` | Encrypted device database file |
 | `DEVICES_KEY_HEX` | (256-bit hex) | AES-256-GCM decryption key (client-side; temporary) |
 | `RECOVERY_KEY` | `'kiosk_recovery'` | localStorage key for navigation breadcrumb |
+| `TAIL_STORAGE_KEY` | `'ios_tail'` | localStorage key for the last looked-up tail number |
 | `NAV_TIMEOUT_MS` | `8000` | Dead man's switch timeout for blind navigation |
 | `PORTAL_URL` | `'https://portal.flyone-g.com'` | one-G Portal API base URL |
 | `PORTAL_TOKEN_STORAGE` | `'kiosk_portal_token'` | localStorage key for cached Portal JWT |
@@ -155,7 +156,7 @@ The kiosk authenticates with the one-G Portal using the same `/apiv2/auth` endpo
 
 **`navigateToUrl(url)`** — Central navigation function. Two paths:
 
-**With extension:** Sends a proxied HTTP fetch to probe the IOS server. On success → `handleConnectionSuccess()` (green banner, 2-second delay, then `window.location.href = url`). On failure → `handleConnectionFailure()` (red banner with context-aware text — "Connection lost" for mid-session drops, "Connection failed" for boot failures — countdown timer, troubleshooting link).
+**With extension:** Sends a proxied HTTP fetch to probe the IOS server. On success → `handleConnectionSuccess()` (green banner, 2-second delay, then `window.location.href = url`). On failure → `handleConnectionFailure()` (red banner with context-aware text — "Connection lost" for mid-session drops, "Connection failed" for boot failures — countdown timer, troubleshooting link). Both amber ("Connecting to...") and green ("Connected — Launching...") banners display the tail number (e.g., "Connecting to N321GX...") when available, falling back to "one-G Instructor Operator Station" for manual URL entries without a tail number.
 
 **Without extension:** Cannot probe HTTP from HTTPS (mixed content). Sets a localStorage recovery breadcrumb, then blindly navigates via `window.location.href = url`. Two safety nets: (1) dead man's switch — if the page hasn't unloaded after `NAV_TIMEOUT_MS`, calls `window.stop()` and enters failure flow; (2) breadcrumb — if Chrome instantly shows an error page (destroying the JS context), the breadcrumb persists for next load.
 
@@ -340,8 +341,8 @@ Two elements are fixed to the viewport and visible on every screen:
 
 ### 6.5 Banner States
 
-- **Amber (connecting):** `cursor: pointer` — clickable to abort and return to config
-- **Green (success):** `cursor: default` — not interactive
+- **Amber (connecting):** `cursor: pointer` — clickable to abort and return to config. Text: "Connecting to {tail}..." or "Connecting to one-G Instructor Operator Station..."
+- **Green (success):** `cursor: default` — not interactive. Text: "Connected — Launching {tail}..." or "Connected — Launching one-G Instructor Operator Station..."
 - **Red (failure):** Context-aware text ("Connection lost" for mid-session drops, "Connection failed" for boot failures). Clickable to open troubleshooting panel
 
 ### 6.6 Responsive Design

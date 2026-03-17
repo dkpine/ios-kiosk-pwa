@@ -38,6 +38,7 @@
   var DEVICES_ENC_URL = './devices.enc';
   var DEVICES_KEY_HEX = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
   var RECOVERY_KEY = 'kiosk_recovery';
+  var TAIL_STORAGE_KEY = 'ios_tail';
   var NAV_TIMEOUT_MS = 8000;
   var PORTAL_URL = 'https://portal.flyone-g.com';
   var PORTAL_TOKEN_STORAGE = 'kiosk_portal_token';
@@ -287,6 +288,7 @@
   var countdownRetryUrl = null;
   var loadingTimer = null;
   var navTimeoutTimer = null;
+  var currentTail = localStorage.getItem(TAIL_STORAGE_KEY) || null;
   var currentTroubleshootContext = 'boot';
 
   // ============================================================
@@ -820,6 +822,8 @@
       lookupMsg.textContent = '';
       closeDiagnostics();
       addrInput.value = url;
+      currentTail = normalized;
+      localStorage.setItem(TAIL_STORAGE_KEY, normalized);
       saveUrl(url);
       showLoadingAndConnect(url);
     }
@@ -988,7 +992,9 @@
 
   function clearSavedUrl() {
     storageRemove(STORAGE_KEY);
+    localStorage.removeItem(TAIL_STORAGE_KEY);
     currentUrl = null;
+    currentTail = null;
     cancelRetry();
     updateCurrentUrlDisplay(null);
   }
@@ -1006,7 +1012,10 @@
   function navigateToUrl(url) {
     cancelRetry();
     dismissTroubleshootPanel();
-    showBanner('connecting', 'Connecting to one-G Instructor Operator Station...');
+    var connectMsg = currentTail
+      ? 'Connecting to ' + currentTail + '...'
+      : 'Connecting to one-G Instructor Operator Station...';
+    showBanner('connecting', connectMsg);
     connectionStatus.onclick = function () {
       cancelRetry();
       showConfigOverlay();
@@ -1064,7 +1073,10 @@
     // Keep the one-G logo + loading dots visible during success banner
     if (bgLogo) bgLogo.classList.remove('hidden');
 
-    showBanner('success', 'Connected \u2014 Launching one-G Instructor Operator Station...');
+    var successMsg = currentTail
+      ? 'Connected \u2014 Launching ' + currentTail + '...'
+      : 'Connected \u2014 Launching one-G Instructor Operator Station...';
+    showBanner('success', successMsg);
 
     if (successTimer) clearTimeout(successTimer);
     successTimer = setTimeout(function () {
