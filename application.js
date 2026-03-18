@@ -34,7 +34,7 @@
   var RETRY_COOLDOWN_S = 10;
   var RING_CIRCUMFERENCE = 2 * Math.PI * 52; // must match <circle r="52"> in index.html
   var APP_VERSION = '3.6';
-  var EXTENSION_ID = 'ffcoooniadfdngdceeiopbkdljcgnoha';
+  var EXTENSION_ID = 'ojhmfklcaknmocfiibdeclhahffofgan'; // Chrome Web Store ID
   var DEVICES_ENC_URL = './devices.enc';
   var DEVICES_KEY_HEX = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
   var RECOVERY_KEY = 'kiosk_recovery';

@@ -65,7 +65,7 @@ The entire application is wrapped in a single IIFE with `'use strict'`. It uses 
 | `PROBE_TIMEOUT_MS` | `8000` | Timeout for extension-proxied HTTP probes |
 | `SUCCESS_BANNER_MS` | `2000` | Delay before navigating after successful probe |
 | `RETRY_COOLDOWN_S` | `10` | Seconds between automatic retry attempts |
-| `EXTENSION_ID` | `'ffcoooniadfdngdceeiopbkdljcgnoha'` | Self-hosted extension ID (deterministic from manifest `key`) |
+| `EXTENSION_ID` | `'ojhmfklcaknmocfiibdeclhahffofgan'` | Chrome Web Store extension ID |
 | `DEVICES_ENC_URL` | `'./devices.enc'` | Encrypted device database file |
 | `DEVICES_KEY_HEX` | (256-bit hex) | AES-256-GCM decryption key (client-side; temporary) |
 | `RECOVERY_KEY` | `'kiosk_recovery'` | localStorage key for navigation breadcrumb |
@@ -377,9 +377,9 @@ The extension has gone through two distribution strategies, driven by problems e
 
 **Self-hosted (initial approach):** The extension was packaged as a `.crx` and served from GitHub Pages with an `updates.xml` manifest. The extension ID (`ffcoooniadfdngdceeiopbkdljcgnoha`) is deterministic via the `key` field in `manifest.json`. This worked in non-kiosk Chrome and in developer mode, but **failed to load reliably on managed Chromebooks in URL-based kiosk mode**. ChromeOS kiosk sessions enforce stricter extension policies than regular browser sessions — self-hosted extensions configured via `ExtensionInstallForcelist` were either silently ignored or failed to install during the kiosk session bootstrap. The extension would never appear, and the PWA would fall back to the no-extension path (blind navigation), which cannot recover from connection failures.
 
-**Chrome Web Store (current approach):** To resolve the self-hosted loading issue, the extension was submitted to the Chrome Web Store (ID: `ojhmfklcaknmocfiibdeclhahffofgan`). Web Store extensions are treated as first-class citizens by ChromeOS kiosk mode and install reliably via the Admin Console's kiosk app/extension configuration. **Version 3.4.0 is currently pending Google's review.** Once approved, v3.6 will be uploaded as an update. The `EXTENSION_ID` in `application.js` currently still references the self-hosted ID and will need to be updated to the Web Store ID once the extension is published and confirmed working on production kiosk devices.
+**Chrome Web Store (current approach):** To resolve the self-hosted loading issue, the extension was submitted to the Chrome Web Store (ID: `ojhmfklcaknmocfiibdeclhahffofgan`). Web Store extensions are treated as first-class citizens by ChromeOS kiosk mode and install reliably via the Admin Console's kiosk app/extension configuration. Version 3.4.0 has been published; v3.6 has been submitted as an update. The `EXTENSION_ID` in `application.js` now references the Web Store ID.
 
-The self-hosted ID and infrastructure remain in place as a fallback for development and non-kiosk testing.
+The self-hosted ID (`ffcoooniadfdngdceeiopbkdljcgnoha`) and infrastructure remain in place as a fallback for development and non-kiosk testing.
 
 ### 7.4 Production Migration
 
