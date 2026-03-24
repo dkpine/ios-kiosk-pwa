@@ -1,4 +1,16 @@
+# Source files (committed to TFS, not public GitHub)
+application.js
+application.css
+sw.js
 devices.json
 encrypt-devices.js
+
+# Internal documentation
 ARCHITECTURE.md
 PORTAL-API-SPEC.md
+
+# Build tooling
+build.js
+node_modules/
+package.json
+package-lock.json
