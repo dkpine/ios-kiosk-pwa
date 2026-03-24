@@ -21,7 +21,7 @@ The core technical challenge: **Chromebooks in URL-based kiosk mode load an HTTP
 The system consists of two deployable artifacts:
 
 **PWA (Progressive Web App)** — `ios-kiosk-pwa/`
-Currently hosted on GitHub Pages at `https://dkpine.github.io/ios-kiosk-pwa/` **for early internal development and testing only**. Production deployment will be at `https://ios.flyone-g.com` (or similar one-G subdomain). The GitHub Pages URL is a temporary convenience — it provides free HTTPS hosting with zero infrastructure, but is not intended for field use. This is the URL configured as the Chromebook's kiosk start page. It provides the configuration UI, device lookup, connection management, failure handling, and retry logic.
+Production: `https://ios.flyone-g.com`. Sandbox/testing: `https://dkpine.github.io/ios-kiosk-pwa/`. The GitHub Pages URL remains available as a development sandbox for bug testing and pre-release validation. Both origins are supported simultaneously by the extension. This is the URL configured as the Chromebook's kiosk start page. It provides the configuration UI, device lookup, connection management, failure handling, and retry logic.
 
 **Chrome Extension (MV3)** — `ios-kiosk-extension/`
 A Manifest V3 Chrome extension deployed via the Chrome Web Store (or self-hosted during development). It provides three critical capabilities that the HTTPS PWA page cannot perform on its own: (1) HTTP fetch proxying from its service worker, (2) IOS page health monitoring via an injected watchdog script, and (3) navigation error recovery via the `webNavigation.onErrorOccurred` API.
@@ -213,7 +213,7 @@ A full-screen overlay opened by the `?` button in the config footer. Provides ed
 
 Available in dev mode via the "diag" button. Runs and displays:
 - Page origin, protocol, extension status, chrome.runtime availability, app version, Portal status, configured URL
-- **HTTPS fetch test** — Fetches `devices.enc` to confirm host connectivity (currently GitHub Pages; production: `ios.flyone-g.com`)
+- **HTTPS fetch test** — Fetches `devices.enc` to confirm host connectivity (same-origin request to whichever host serves the PWA)
 - **Extension proxy ping** — Sends a ping through the extension communication layer
 - **IOS via extension** — Proxied fetch to the configured IOS URL (if set)
 - **IOS direct fetch** — Direct `no-cors` fetch to the IOS URL (expected to fail from HTTPS; useful for diagnostics)
@@ -247,12 +247,12 @@ A `pageshow` event listener detects when Chrome restores the page from bfcache (
 
 - **Manifest V3** with a `service_worker` background script.
 - **Permissions:** `storage`, `scripting`, `tabs`, `webNavigation`
-- **Host permissions:** `https://dkpine.github.io/*` (test; production: `https://ios.flyone-g.com/*`), `http://*:3100/*`, `http://localhost:3100/*`
-- **`externally_connectable`:** Allows `https://dkpine.github.io/*` (test; production: `https://ios.flyone-g.com/*`) to call `chrome.runtime.sendMessage()` directly.
+- **Host permissions:** `https://ios.flyone-g.com/*` (production), `https://dkpine.github.io/*` (sandbox), `http://*:3100/*`, `http://localhost:3100/*`
+- **`externally_connectable`:** Allows both `https://ios.flyone-g.com/*` and `https://dkpine.github.io/*` to call `chrome.runtime.sendMessage()` directly.
 - **Content scripts:** Two declarative injections:
-  1. `content.js` into `https://dkpine.github.io/ios-kiosk-pwa/*` (test; production: `https://ios.flyone-g.com/*`) (bridge)
+  1. `content.js` into `https://ios.flyone-g.com/*` and `https://dkpine.github.io/ios-kiosk-pwa/*` (bridge)
   2. `watchdog.js` into `http://*:3100/*` filtered to private IP ranges (health monitor)
-- **Deterministic extension ID** via the `key` field, ensuring consistent `EXTENSION_ID` across installations.
+- **Deterministic extension ID** via the `key` field (self-hosted builds) or Chrome Web Store assignment.
 
 ### 4.2 Service Worker (`background.js`)
 
@@ -261,15 +261,15 @@ A `pageshow` event listener detects when Chrome restores the page from bfcache (
 - `fetch` — Validates the URL against `isAllowedUrl()` (private-IP `:3100` servers and `flyone-g.com` including all subdomains), then performs `fetch(url, {mode: 'no-cors'})` with configurable timeout via `AbortController`. Returns `{ok, status, type}` or `{ok: false, error}`. URLs that don't match the allowlist are rejected with `"URL not allowed by extension policy"`, preventing the extension from being used as an open HTTP proxy.
 - `storageGet/Set/Remove` — Proxies `chrome.storage.local` operations
 
-**Programmatic content script injection** — Belt-and-suspenders: even though `content.js` is declared in the manifest, the service worker also programmatically injects it via `chrome.scripting.executeScript` when a kiosk page tab finishes loading. Handles both `tabs.onUpdated` and startup queries for already-open tabs. Tracks injected tabs in `injectedTabs` to prevent double injection.
+**Programmatic content script injection** — Belt-and-suspenders: even though `content.js` is declared in the manifest, the service worker also programmatically injects it via `chrome.scripting.executeScript` when a kiosk page tab finishes loading. Uses `KIOSK_ORIGINS` array and `getKioskOrigin(url)` to match against both production and sandbox origins. Handles both `tabs.onUpdated` and startup queries for already-open tabs. Tracks injected tabs in `injectedTabs` and records which origin each tab uses in `tabKioskOrigin` for correct recovery redirects.
 
 **Watchdog injection** — Same programmatic injection pattern for `watchdog.js` into IOS HTTP pages. `isAllowedUrl(url)` validates against the private IP + port 3100 regex pattern and `flyone-g.com` subdomains.
 
-**Navigation error recovery** — `webNavigation.onErrorOccurred` listener catches failed navigations to allowed URLs (connection refused, DNS error, timeout). After a 500ms delay (to let Chrome render the error page), redirects the tab back to the kiosk PWA with `?recovery=<encoded_failed_url>&recovery_type=nav_error`. This is the critical mechanism that returns the user to the PWA when the IOS is unreachable — without it, the user is stranded on Chrome's error page.
+**Navigation error recovery** — `webNavigation.onErrorOccurred` listener catches failed navigations to allowed URLs (connection refused, DNS error, timeout). After a 500ms delay (to let Chrome render the error page), redirects the tab back to the kiosk PWA with `?recovery=<encoded_failed_url>&recovery_type=nav_error`. The redirect uses the origin tracked in `tabKioskOrigin` for that tab (falling back to the most recent known origin, then the default production origin). This is the critical mechanism that returns the user to the PWA when the IOS is unreachable — without it, the user is stranded on Chrome's error page.
 
 ### 4.3 Content Script Bridge (`content.js`)
 
-Injected into the kiosk PWA page (currently GitHub Pages; production: `ios.flyone-g.com`). Wrapped in an IIFE with a `__iosKioskContentScriptLoaded` double-injection guard. All `chrome.runtime` calls are wrapped in try-catch to handle "Extension context invalidated" errors. All `postMessage` replies use the `KIOSK_ORIGIN` constant (set to the PWA's HTTPS origin) as the target origin, preventing eavesdropping by other frames or extensions.
+Injected into the kiosk PWA page (both `ios.flyone-g.com` and the GitHub Pages sandbox). Wrapped in an IIFE with a `__iosKioskContentScriptLoaded` double-injection guard. All `chrome.runtime` calls are wrapped in try-catch to handle "Extension context invalidated" errors. All `postMessage` replies use `KIOSK_ORIGIN` (set dynamically to `window.location.origin`) as the target origin, preventing eavesdropping by other frames or extensions. This dynamic detection means the content script works identically on both production and sandbox origins without code changes.
 
 On load, immediately posts `{iosKioskReply: true, type: 'extensionReady', version}` to announce presence to the page.
 
@@ -361,14 +361,16 @@ Two media query breakpoints:
 
 ### 7.1 Hosting
 
-The PWA is currently hosted on GitHub Pages (`https://dkpine.github.io/ios-kiosk-pwa/`) **strictly for early internal development and testing**. GitHub Pages provides free, zero-configuration HTTPS hosting, which was essential for rapid iteration during initial development. However, it is not suitable for production deployment — it depends on a third-party service, the URL is not branded, and any GitHub outage would take the fleet offline.
+**Production:** `https://ios.flyone-g.com` — branded one-G subdomain under full organizational control for availability, CORS configuration, and branding.
 
-**Production hosting** will be at `https://ios.flyone-g.com` (or equivalent one-G subdomain), giving full control over availability, CORS configuration, and branding. All hardcoded GitHub Pages URLs in the extension (manifest, background.js, watchdog.js) will be updated as part of that migration.
+**Sandbox:** `https://dkpine.github.io/ios-kiosk-pwa/` — GitHub Pages origin retained as a development sandbox for bug testing, pre-release validation, and emergency fallback. GitHub Pages provides free, zero-configuration HTTPS hosting.
+
+The extension supports both origins simultaneously (dual-origin architecture), so the sandbox remains fully functional alongside production without requiring extension changes.
 
 ### 7.2 ChromeOS Kiosk Configuration
 
 Chromebooks are enrolled in Google Workspace and configured via the Admin Console:
-- **Kiosk URL:** `https://dkpine.github.io/ios-kiosk-pwa/` (test) → `https://ios.flyone-g.com` (production)
+- **Kiosk URL:** `https://ios.flyone-g.com` (production), `https://dkpine.github.io/ios-kiosk-pwa/` (sandbox)
 - **Extension:** Force-installed via the Admin Console extension policy
 
 ### 7.3 Extension Distribution & Self-Hosting Challenges
@@ -383,16 +385,13 @@ The self-hosted ID (`ffcoooniadfdngdceeiopbkdljcgnoha`) and infrastructure remai
 
 ### 7.4 Production Migration
 
-When moving from GitHub Pages to `ios.flyone-g.com`:
-1. Update `KIOSK_URL_PATTERN` in `background.js`
-2. Update `externally_connectable.matches` in `manifest.json`
-3. Update `content_scripts[0].matches` in `manifest.json`
-4. Update `KIOSK_APP_URL` in `watchdog.js`
-5. Update `KIOSK_ORIGIN` in `content.js`
-6. Update `host_permissions` in `manifest.json`
-7. Update `EXTENSION_ID` in `application.js` to Web Store ID
-8. Publish extension update to Web Store
-9. Update Admin Console kiosk URL and extension policy
+The extension already supports both `ios.flyone-g.com` and `dkpine.github.io` simultaneously (dual-origin architecture). No extension changes are needed when switching the PWA's production host. The remaining steps to complete production migration:
+
+1. Deploy PWA files to `ios.flyone-g.com` web server
+2. Bump service worker cache version (`sw.js`) to force fresh cache on the new domain
+3. Update Admin Console kiosk URL from GitHub Pages to `ios.flyone-g.com`
+4. Validate end-to-end on a test kiosk Chromebook
+5. Roll out to remaining fleet OUs
 
 ---
 

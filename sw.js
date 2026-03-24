@@ -10,7 +10,7 @@
    needing manual cache clears.
    ============================================================ */
 
-var CACHE_NAME = 'ios-kiosk-shell-v1.21';
+var CACHE_NAME = 'ios-kiosk-shell-v1.22';
 
 var SHELL_ASSETS = [
   './',

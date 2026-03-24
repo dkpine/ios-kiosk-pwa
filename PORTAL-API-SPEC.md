@@ -120,10 +120,10 @@ The Portal must also handle `OPTIONS` preflight requests on both endpoints and r
 
 | Environment | Origin |
 |-------------|--------|
-| Test (current) | `https://dkpine.github.io` |
-| Production (planned) | `https://ios.flyone-g.com` |
+| Production | `https://ios.flyone-g.com` |
+| Sandbox | `https://dkpine.github.io` |
 
-During development, allow both origins. Once the production deployment is confirmed, the GitHub Pages origin can be removed. A wildcard subdomain like `*.flyone-g.com` is also acceptable if the Portal prefers that approach.
+**Both origins must be allowlisted.** The GitHub Pages origin is a permanent development sandbox used for bug testing and pre-release validation — it is not being retired. If only the production origin is allowlisted, Portal lookups from the sandbox will fail silently (the browser blocks the response). A wildcard subdomain like `*.flyone-g.com` is also acceptable for the production side if the Portal prefers that approach, but the GitHub Pages origin must be listed explicitly since it is a separate domain.
 
 **Why this matters:** The IOS itself talks to the Portal from server-side Node.js code, so CORS has never been needed before. The kiosk is the first client hitting the Portal directly from a browser, which triggers the browser's same-origin policy. Without these headers, the kiosk's `fetch()` calls will fail with a network error — the Portal will receive and process the request, but the browser will refuse to let the kiosk read the response.
 
@@ -165,7 +165,7 @@ The only exception may be a hardcoded local/test entry (similar to how the IOS a
 
 ## Deployment Notes
 
-The kiosk is currently hosted on GitHub Pages (`https://dkpine.github.io/ios-kiosk-pwa/`) for development and testing. Production hosting will move to `https://ios.flyone-g.com`. The Portal URL is hardcoded in the kiosk as `https://portal.flyone-g.com` and does not need to change.
+The kiosk PWA is hosted at two origins: `https://ios.flyone-g.com` (production) and `https://dkpine.github.io/ios-kiosk-pwa/` (permanent development sandbox). Both origins make identical API calls to the Portal. The Portal URL is hardcoded in the kiosk as `https://portal.flyone-g.com` and does not need to change.
 
 ## Testing
 

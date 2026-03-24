@@ -1,12 +1,14 @@
 /* ============================================================
-   Instructor Station Kiosk - GitHub Pages App
-   Core application logic — v3.6
+   Instructor Station Kiosk — Core Application Logic (v3.6)
 
-   This runs from the GitHub Pages HTTPS origin. HTTP fetch
-   probes to private-IP IOS servers are proxied through the
-   companion Chrome extension via a content script bridge.
-   The content script (injected by the extension) relays
-   postMessage calls to the extension's service worker.
+   Production:  https://ios.flyone-g.com
+   Sandbox:     https://dkpine.github.io/ios-kiosk-pwa/
+
+   This runs from an HTTPS origin. HTTP fetch probes to
+   private-IP IOS servers are proxied through the companion
+   Chrome extension via a content script bridge. The content
+   script (injected by the extension) relays postMessage calls
+   to the extension's service worker.
 
    Once the IOS is found, the page navigates directly to
    the HTTP URL (top-level navigation is not subject to
@@ -19,7 +21,7 @@
         stale navigation stamp and skip straight to retry flow.
 
    devices.enc (AES-256-GCM encrypted) is fetched from the same
-   GitHub Pages origin and decrypted client-side.
+   origin and decrypted client-side.
    ============================================================ */
 
 (function () {
